@@ -1,0 +1,49 @@
+name: Auto Package FontMM
+
+on:
+  push:
+    branches:
+      - main  # 或者你想要监听的分支
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 拉取代码，注意 fetch-depth: 0 才能拿到所有历史和 Tag
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. 获取版本号和哈希值
+      - name: Get Version and Hash
+        id: vars
+        run: |
+          # 获取上一个最近的 Tag，如果没有则默认为 V0.0
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "V0.0")
+          # 获取当前 Commit 的短 Hash
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      # 3. 清理文件并压缩
+      - name: Cleanup and Zip
+        run: |
+          # 删除 .gitattributes
+          rm -f .gitattributes
+          
+          # 构造文件名
+          FILENAME="FontMM-${{ steps.vars.outputs.tag }}-${{ steps.vars.outputs.sha }}.zip"
+          
+          # 使用 zip -9 压缩当前目录所有文件 (排除 .git 目录和生成的 zip 本身)
+          zip -r -9 "$FILENAME" . -x "*.git*"
+          
+          # 将文件名存起来，方便后续步骤调用
+          echo "zip_name=$FILENAME" >> $GITHUB_ENV
+
+      # 4. (可选) 将压缩包上传到 Actions 的 Artifacts 供下载
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.zip_name }}
+          path: ${{ env.zip_name }}
