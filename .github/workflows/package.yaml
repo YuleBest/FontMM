@@ -3,30 +3,31 @@ name: Auto Package FontMM
 on:
   push:
     branches:
-      - main  # 或者你想要监听的分支
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. 拉取代码，注意 fetch-depth: 0 才能拿到所有历史和 Tag
+      # 1. 开启 LFS 拉取
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          lfs: true # 关键点：设置为 true 才会拉取真正的 LFS 文件
 
-      # 2. 获取版本号和哈希值
+      # 2. 确保 LFS 文件完全拉取 (有时候 checkout 的 lfs 参数不够稳)
+      - name: Pull LFS objects
+        run: git lfs pull
+
       - name: Get Version and Hash
         id: vars
         run: |
-          # 获取上一个最近的 Tag，如果没有则默认为 V0.0
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "V0.0")
-          # 获取当前 Commit 的短 Hash
           SHORT_SHA=$(git rev-parse --short HEAD)
           echo "tag=$PREV_TAG" >> $GITHUB_OUTPUT
           echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
-      # 3. 清理文件并压缩
       - name: Cleanup and Zip
         run: |
           # 删除 .gitattributes
@@ -35,15 +36,17 @@ jobs:
           # 构造文件名
           FILENAME="FontMM-${{ steps.vars.outputs.tag }}-${{ steps.vars.outputs.sha }}.zip"
           
-          # 使用 zip -9 压缩当前目录所有文件 (排除 .git 目录和生成的 zip 本身)
-          zip -r -9 "$FILENAME" . -x "*.git*"
+          # 压缩时排除 .git 和当前 workflow 目录
+          # 使用 -j 选项可以直接把文件放根目录，看你需不需要保留文件夹结构
+          zip -r -9 "$FILENAME" . -x "*.git*" ".github*"
           
-          # 将文件名存起来，方便后续步骤调用
           echo "zip_name=$FILENAME" >> $GITHUB_ENV
 
-      # 4. (可选) 将压缩包上传到 Actions 的 Artifacts 供下载
+      # 3. 解决 .zip.zip 的问题
+      # 如果你只是想在 GitHub Actions 页面下载，用这个：
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.zip_name }}
-          path: ${{ env.zip_name }}
+          name: FontMM-Release # 这里定义 Artifact 的名字（它是文件夹概念）
+          path: ${{ env.zip_name }} # 这里指向你刚才打好的那个 zip
+          compression-level: 0 # 既然你已经 zip -9 了，这里设为 0 防止二次压缩
