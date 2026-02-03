@@ -1,3 +1,4 @@
+# shellcheck disable=SC2148
 # FontMM ColorOS 16
 # 刷入脚本
 SKIPUNZIP=0
