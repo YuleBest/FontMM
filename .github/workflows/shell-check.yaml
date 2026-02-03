@@ -1,4 +1,4 @@
-name: Shell Check
+name: ShellCheck
 
 on:
   push:
@@ -17,7 +17,9 @@ jobs:
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
         with:
+          # 只检查以 .sh 结尾的文件
+          check_all_files_with_extensions: true
+          additional_extensions: 'sh'
           severity: warning
-          scandir: './'
         env:
           SHELLCHECK_OPTS: -x
