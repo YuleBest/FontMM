@@ -1,10 +1,10 @@
-nowVersion=V1.2-alpha
-nowVersionCode=100201
+nowVersion=V1.2-beta
+nowVersionCode=100202
 
 version=V1.1
 versionCode=100110
 
-testVersion=V1.2-alpha
-testVersionCode=100201
+testVersion=V1.2-beta
+testVersionCode=100202
 
 updateLogs=https://raw.githubusercontent.com/YuleBest/FontMM/refs/heads/main/更新日志.md
