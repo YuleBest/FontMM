@@ -1,6 +1,5 @@
 name: Release Package & Attach
 
-# 触发条件：当发布（published）一个 Release 时
 on:
   release:
     types: [published]
@@ -8,12 +7,10 @@ on:
 jobs:
   upload-assets:
     runs-on: ubuntu-latest
-    # 授予写入 Release 内容的权限
     permissions:
       contents: write
     
     steps:
-      # 1. 拉取代码并包含 LFS
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -22,29 +19,30 @@ jobs:
       - name: Pull LFS objects
         run: git lfs pull
 
-      # 2. 准备打包环境并压缩
-      - name: Cleanup and Zip
+      - name: Pack Template and Final Zip
         id: pack
         run: |
-          # 删除 .gitattributes
-          rm -f .gitattributes
+          # 1. 先把内部 template 文件夹打成 zip
+          # 进入目录操作是为了避免 zip 包里包含冗余的路径层级
+          cd template/template/
+          zip -r -9 "../template.zip" .
+          cd ../../
           
-          # 获取当前 Release 的 Tag 名字 (比如 V1.1)
+          # 2. 清理不需要的文件
+          rm -f ./template/README.txt
+          
+          # 3. 准备最终 Release 包
           TAG_NAME="${{ github.event.release.tag_name }}"
-          # 按照你的要求命名：FontMM-[Tag]-release.zip
           FILENAME="FontMM-${TAG_NAME}-release.zip"
           
-          # 执行最高压缩
-          zip -r -9 "$FILENAME" . -x "*.git*" ".github*"
+          # 打包外层，排除掉源码目录 template/template/，保留生成的 template/template.zip
+          zip -r -9 "$FILENAME" . -x "*.git*" ".github*" "template/template/*"
           
-          # 存入环境变量供下一步引用
           echo "ZIP_PATH=$FILENAME" >> $GITHUB_ENV
 
-      # 3. 将打包好的文件上传到当前的 Release 页面
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
-          # files 指向刚才生成的压缩包路径
           files: ${{ env.ZIP_PATH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
