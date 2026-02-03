@@ -16,7 +16,7 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m' 
 
-# 获取项目根目录 (假设脚本在项目子目录下)
+# 获取项目根目录
 ROOT_DIR="$(dirname $(dirname $(readlink -f "$0")))"
 LOCAL_PROP="$ROOT_DIR/update.prop"
 REMOTE_PROP_URL="https://raw.githubusercontent.com/YuleBest/FontMM/main/update.prop"
@@ -46,7 +46,7 @@ if ! curl -sL --connect-timeout 10 "$REMOTE_PROP_URL" -o "$TEMP_PROP"; then
     exit 1
 fi
 
-# 2. 解析版本信息
+# 解析版本信息
 LOCAL_NOW_VC=$(get_vc_pure "nowVersionCode" "$LOCAL_PROP")
 LOCAL_NOW_VC=${LOCAL_NOW_VC:-0}
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # FontMM - ColorOS 16 反馈脚本
 # By Yule
-SCRIPT_DIR="$(dirname $(readlink -f $0))"
+SCRIPT_DIR="$(dirname "$(dirname $(readlink -f $0))")"
 
 # while [ "$(stty size | cut -d' ' -f2)" -le 80 ]; do
     # clear
