@@ -31,11 +31,11 @@ choose_option() {
 }
 
 # 兜底字体
-# if [ ! -f "$MODDIR/ttf/ch.ttf" ]; then
-    # echo "缺少 ch.ttf，终止"
-    # sleep 2
-    # exit 1
-# fi
+if [ ! -f "$MODDIR/ttf/ch.ttf" ]; then
+    echo "缺少 ch.ttf，终止"
+    sleep 2
+    exit 1
+fi
 
 # 存在则用，不存在自动回退 ch.ttf
 hans="$MODDIR/ttf/ch.ttf"
