@@ -20,7 +20,7 @@ FLASH_RENAMER() {
     cp -v "$en"   "$MODPATH/system/fonts/SysSans-En-Regular.ttf"
 
     cp -v "$hans" "$MODPATH/system/fonts/SysFont-Static-Regular.ttf"
-    cp -v "$hans" "$MODPATH/system/fonts/SysFont-Myanmar.ttf"   
+    cp -v "$hans" "$MODPATH/system/fonts/SysFont-Myanmar.ttf"
     cp -v "$hant" "$MODPATH/system/fonts/SysFont-Hant-Regular.ttf"
     cp -v "$hans" "$MODPATH/system/fonts/SysFont-Hans-Regular.ttf"
     cp -v "$hans" "$MODPATH/system/fonts/SysFont-Regular.ttf"

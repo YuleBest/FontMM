@@ -16,9 +16,8 @@ res='\033[0m'
 clear
 
 # 环境检查
-
-if ! command -v jq >/dev/null 2>&1; then
-    echo -e "${re}[错误] 缺少 jq，请安装后重试${res}"
+if ! command -v yq >/dev/null 2>&1; then
+    echo -e "${re}[错误] 缺少 yq，请安装后重试${res}"
     exit 1
 fi
 if ! command -v wget >/dev/null 2>&1; then
@@ -27,17 +26,14 @@ if ! command -v wget >/dev/null 2>&1; then
 fi
 
 # 直接打包
-
 PACKUP() {
     cp -v "$DOWN_DIR/$TITLE.ttf" "$SCRIPT_DIR/ttf/ch.ttf"
     bash "$SCRIPT_DIR/开始打包.sh"
 }
 
 # 解包
-
 UNPACK() {
     local choice="n"
-    
     if unzip -j "${SAVE_PATH}" "fonts/Roboto-Regular.ttf" -d "$DOWN_DIR"; then
         mv "$DOWN_DIR/Roboto-Regular.ttf" "$DOWN_DIR/$TITLE.ttf"
         echo -e "${gr}OK 解包成功：$DOWN_DIR/$TITLE${res}"
@@ -67,12 +63,14 @@ read -r KEYWORD
 NOW_PAGE=0
 while true; do
     echo -e "\n${ye}>>> 正在请求搜索接口（第 $((NOW_PAGE+1)) 页）...${res}"
+    # 使用 curl 的 urlencode 处理关键词，防止 yq 解析路径时出错
     SEARCH_API="https://thm.market.intl.xiaomi.com/thm/search/npage?category=Font&keywords=${KEYWORD}&page=${NOW_PAGE}"
     resp=$(curl -s "$SEARCH_API")
 
-    # 获取标题和链接
-    mapfile -t titles < <(echo "$resp" | jq -r '.apiData.cards[].items[].schema.clicks[].title')
-    mapfile -t links < <(echo "$resp" | jq -r '.apiData.cards[].items[].schema.clicks[].link')
+    # [yq 改动] 获取标题和链接
+    # yq 获取列表需要用 []，且为了保持输出干净，使用 -o=props 或 -o=json
+    mapfile -t titles < <(echo "$resp" | yq -p json '.apiData.cards[].items[].schema.clicks[].title')
+    mapfile -t links < <(echo "$resp" | yq -p json '.apiData.cards[].items[].schema.clicks[].link')
 
     count=${#titles[@]}
     if [ "$count" -eq 0 ]; then
@@ -102,16 +100,19 @@ while true; do
         DETAILS_API="https://api.zhuti.intl.xiaomi.com/app/v9/uipages/theme/${A_ID}"
         echo -e "${ye}\n>>> 获取字体详情...${res}"
         detail=$(curl -s "$DETAILS_API")
-        DOWN_URL=$(echo "$detail" | jq -r '.apiData.extraInfo.themeDetail.downloadUrl')
+        
+        # [yq 改动] 获取下载链接
+        DOWN_URL=$(echo "$detail" | yq -p json '.apiData.extraInfo.themeDetail.downloadUrl')
 
         if [[ "$DOWN_URL" == "null" || -z "$DOWN_URL" ]]; then
             echo -e "${re}[错误] 获取下载链接失败${res}"
-            echo "$detail" | jq .
+            echo "$detail" | yq -p json '.'
             continue
         fi
-
-        ENCODED_TITLE=$(printf "%s" "$TITLE" | jq -sRr @uri)
-        DL_URL="https://f17.market.xiaomi.com/issue/${DOWN_URL}/${ENCODED_TITLE}.mtz"
+        
+        # ENCODED_TITLE=$(printf '%s' "$TITLE" | xxd -p | tr -d '\n' | sed 's/../%\1/g')
+        # DL_URL="https://f17.market.xiaomi.com/issue/${DOWN_URL}/${ENCODED_TITLE}.mtz"
+        DL_URL="https://f17.market.xiaomi.com/issue/${DOWN_URL}/${TITLE}.mtz"
         SAVE_PATH="${DOWN_DIR}/${TITLE}.mtz"
 
         echo -e "${bl}下载链接：${res}${DL_URL}"
