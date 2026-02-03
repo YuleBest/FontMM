@@ -2,6 +2,7 @@
 # FontMM
 # 将 fonts.xml 转换为 json
 # By Yule
+# shellcheck disable=SC2154
 
 # 配置
 SCRIPT_DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
@@ -23,7 +24,7 @@ mkdir -p "$WORK_DIR/tmp"
 # 转换函数
 
 conversion() {
-    local mode="xml2json"
+    # local mode="xml2json"
     local input="$1"
     local output="$2"
     

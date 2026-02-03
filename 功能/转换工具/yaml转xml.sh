@@ -2,6 +2,7 @@
 # FontMM
 # 将 yaml 转换为 xml
 # By Yule
+# shellcheck disable=SC2154
 
 # 配置
 SCRIPT_DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
@@ -23,7 +24,7 @@ mkdir -p "$WORK_DIR/tmp"
 # 转换函数
 
 conversion() {
-    local mode="yaml2xml"
+    # local mode="yaml2xml"
     local input="$2"
     local output="$1"
     
