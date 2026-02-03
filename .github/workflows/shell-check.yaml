@@ -15,11 +15,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@master
-        with:
-          # 只检查以 .sh 结尾的文件
-          check_all_files_with_extensions: true
-          additional_extensions: 'sh'
-          severity: warning
-        env:
-          SHELLCHECK_OPTS: -x
+        run: |
+          # 寻找当前目录下所有以 .sh 结尾的文件
+          # 并通过 xargs 传给 shellcheck
+          # -r 参数防止没有文件时报错，-x 支持联动检查
+          find . -name "*.sh" -print0 | xargs -0 shellcheck -x --severity=warning
