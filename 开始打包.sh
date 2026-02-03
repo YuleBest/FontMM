@@ -1,10 +1,11 @@
 #!/bin/bash
 # FontMM - ColorOS 16 打包脚本
 # By Yule
+# shellcheck disable=SC2086
 
 # --- 配置 ---
 COMP_LEVEL="9"
-SCRIPT_DIR="$(dirname $(readlink -f $0))"
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 TEMP_DIR="$SCRIPT_DIR/template"
 TTF_DIR="$SCRIPT_DIR/ttf"
 BUILD_DIR="$SCRIPT_DIR/.build"
@@ -120,9 +121,11 @@ PACKER() {
 }
 
 CALC_TIME() {
-    local END_TIME=$(date +%s.%N)
+    local END_TIME
+    END_TIME=$(date +%s.%N)
     # 计算差值并保留两位小数
-    local DURATION=$(echo "$END_TIME - $START_TIME" | bc 2>/dev/null || echo "0")
+    local DURATION
+    DURATION="$(echo "$END_TIME - $START_TIME" | bc 2>/dev/null || echo "0")"
     
     echo ""
     echo -e "${PURPLE}--------------------------------------${NC}"

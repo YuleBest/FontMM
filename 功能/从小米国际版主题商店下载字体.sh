@@ -1,9 +1,10 @@
+#!/bin/bash
 # FontMM
 # 下载小米国际版主题商店字体脚本
 # By Yule
 
 # 配置
-SCRIPT_DIR="$(dirname "$(dirname $(readlink -f $0))")"
+SCRIPT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 DOWN_DIR="$SCRIPT_DIR/download"
 export PATH="$PATH:$SCRIPT_DIR/功能/bin"
 mkdir -p "$DOWN_DIR" >/dev/null 2>&1
@@ -43,7 +44,7 @@ UNPACK() {
         rm -f "${SAVE_PATH}"
         
         echo -en "\n${bl}是否直接打包下载好的字体，请确保你选择的字体支持中文 (y/N)"
-        read choice
+        read -r choice
         case $choice in
             y|Y) PACKUP ;;
             *) exit 0 ;;
@@ -70,8 +71,8 @@ while true; do
     resp=$(curl -s "$SEARCH_API")
 
     # 获取标题和链接
-    titles=($(echo "$resp" | jq -r '.apiData.cards[].items[].schema.clicks[].title'))
-    links=($(echo "$resp" | jq -r '.apiData.cards[].items[].schema.clicks[].link'))
+    mapfile -t titles < <(echo "$resp" | jq -r '.apiData.cards[].items[].schema.clicks[].title')
+    mapfile -t links < <(echo "$resp" | jq -r '.apiData.cards[].items[].schema.clicks[].link')
 
     count=${#titles[@]}
     if [ "$count" -eq 0 ]; then
@@ -115,16 +116,17 @@ while true; do
 
         echo -e "${bl}下载链接：${res}${DL_URL}"
         echo -e "${bl}保存路径：${res}${SAVE_PATH}"
-
+        
         echo -e "${ye}\n>>> 开始下载，请稍候...${res}"
-        wget -q --show-progress -O "$SAVE_PATH" "$DL_URL"
-        echo ""
-        if [[ $? -eq 0 ]]; then
+        if wget -q --show-progress -O "$SAVE_PATH" "$DL_URL"; then
+            echo ""
             echo -e "- 下载完成"
-            UNPACK ${SAVE_PATH}
+            UNPACK "${SAVE_PATH}"
         else
+            echo ""
             echo -e "${re}>_< 下载失败，请检查网络或链接${res}"
         fi
+
         exit 0
     elif [[ "$input" == "n" ]]; then
         ((NOW_PAGE++))

@@ -1,6 +1,7 @@
+#!/bin/bash
 # FontMM ColorOS 16
 # 更换字体脚本
-MODDIR=$(dirname $(readlink -f $0))
+MODDIR="$(dirname "$(readlink -f "$0")")"
 sleep 1 # 这是必须的，防止上一次选择连续触发
 
 # 通用按键选择函数

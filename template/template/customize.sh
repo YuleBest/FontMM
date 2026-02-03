@@ -1,8 +1,6 @@
 # shellcheck disable=SC2148
 # FontMM ColorOS 16
 # 刷入脚本
-SKIPUNZIP=0
-
 FLASH_RENAMER() {
     # 兜底字体
     if [ ! -f "$MODPATH/ttf/ch.ttf" ]; then

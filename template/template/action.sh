@@ -1,3 +1,6 @@
+# shellcheck disable=SC2148
+# shellcheck disable=SC1091
+
 # FontMM ColorOS 16
 # Action 脚本
 MODDIR=${0%/*}

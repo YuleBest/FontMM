@@ -1,5 +1,5 @@
 #!/system/bin/sh
-MODDIR=${0%/*}
+# MODDIR=${0%/*}
 
 # 删除谷歌商店搜索框字体
 rm -rf /data/data/com.google.android.gms/files/fonts/opentype

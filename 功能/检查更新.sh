@@ -17,7 +17,7 @@ BOLD='\033[1m'
 NC='\033[0m' 
 
 # 获取项目根目录
-ROOT_DIR="$(dirname $(dirname $(readlink -f "$0")))"
+ROOT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 LOCAL_PROP="$ROOT_DIR/update.prop"
 REMOTE_PROP_URL="https://raw.githubusercontent.com/YuleBest/FontMM/main/update.prop"
 BASE_WEB_URL="https://github.com/YuleBest/FontMM/releases/tag"
@@ -82,7 +82,7 @@ if $HAS_STABLE && $HAS_TEST; then
     echo -e "  2) ${YELLOW}测试版${NC}: $TEST_VER (Code: $TEST_VC)"
     echo -e "  3) 暂时不更新"
     echo
-    read -p "选择查看的版本 [1-3]: " choice
+    read -rp "选择查看的版本 [1-3]: " choice
     case $choice in
         1) show_link "$REMOTE_VER" ;;
         2) show_link "$TEST_VER" ;;
@@ -90,11 +90,11 @@ if $HAS_STABLE && $HAS_TEST; then
     esac
 elif $HAS_STABLE; then
     echo -e "${GREEN}[!] 发现新正式版: ${BOLD}$REMOTE_VER${NC} (Code: $REMOTE_VC)"
-    read -p "是否查看下载链接？(y/n): " choice
+    read -rp "是否查看下载链接？(y/n): " choice
     [[ "$choice" =~ ^[Yy]$ ]] && show_link "$REMOTE_VER"
 elif $HAS_TEST; then
     echo -e "${YELLOW}[!] 发现新测试版: ${BOLD}$TEST_VER${NC} (Code: $TEST_VC)"
-    read -p "是否查看下载链接？(y/n): " choice
+    read -rp "是否查看下载链接？(y/n): " choice
     [[ "$choice" =~ ^[Yy]$ ]] && show_link "$TEST_VER"
 else
     echo -e "${CYAN}[~] 当前已是最新版，无需更新。${NC}"

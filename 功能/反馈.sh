@@ -1,7 +1,7 @@
 #!/bin/bash
 # FontMM - ColorOS 16 反馈脚本
 # By Yule
-SCRIPT_DIR="$(dirname "$(dirname $(readlink -f $0))")"
+SCRIPT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 
 # while [ "$(stty size | cut -d' ' -f2)" -le 80 ]; do
     # clear
@@ -49,7 +49,7 @@ echo -n "- 元模块：$(cat /data/adb/metamodule/module.prop | grep name)"
 echo
 echo
 echo "FontMM 文件列表："
-ls -R $SCRIPT_DIR
+ls -R "$SCRIPT_DIR"
 
 echo
 echo "已安装模块列表："
@@ -57,13 +57,15 @@ ls /data/adb/modules/
 
 echo
 echo "系统 fonts 列表 (筛选)："
-ls -s -k /system/fonts/ | grep Sys
+# ls -s -k /system/fonts/ | grep Sys
+find "/system/fonts/" -name "*Sys*" -printf "%s %p\n"
 
 echo
 echo "模块 fonts 列表 (筛选)："
 mod_id_line="$(cat "$SCRIPT_DIR/module.prop" | grep id)"
 mod_id="${mod_id_line#*=}"
-ls -s -k "/data/adb/modules/$mod_id/system/fonts/" | grep Sys
+# ls -s -k "/data/adb/modules/$mod_id/system/fonts/" | grep Sys
+find "/data/adb/modules/$mod_id/system/fonts/" -name "*Sys*" -printf "%s %p\n"
 
 echo
 echo "系统 fonts.xml SHA256：$(sha256sum "/system/etc/fonts.xml" | cut -f1 -d" ")"

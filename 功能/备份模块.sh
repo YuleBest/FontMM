@@ -1,8 +1,9 @@
+#!/bin/bash
 # FontMM ColorOS 16
 # 备份模块脚本
 
 # --- 配置 ---
-SCRIPT_DIR="$(dirname "$(dirname $(readlink -f $0))")"
+SCRIPT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 COMP_LEVEL="5"
 TMP_DIR="$SCRIPT_DIR/.tmp"
 MODDIR_BASE="/data/adb/modules"
@@ -54,8 +55,8 @@ BACKUP() {
     unzip -o "$SCRIPT_DIR/template/template.zip" "customize.sh" "META-INF/com/google/android/update-binary" "META-INF/com/google/android/updater-script" -d "$TMP_DIR/"  # 竟然是updater-script，不要忘记加r
 
     # 压缩
-    cd "$TMP_DIR"
-    zip -r $filename .
+    cd "$TMP_DIR" || exit 1
+    zip -r -"$COMP_LEVEL" "$filename" .
     if [ -f "./$filename" ]; then
         mv "./$filename" "/sdcard/"
     else
@@ -71,7 +72,7 @@ CHOICE() {
     local input
     
     echo -n "请输入一个模块完整路径 或者模块ID："
-    read input
+    read -r input
     
     # 模块 id 不含斜杠
     if echo "$input" | grep "/" > /dev/null; then
@@ -93,7 +94,7 @@ echo "模块 ID ：$mod_id"
 echo
 
 echo -n "请问以上信息正确吗？(y/N)  "
-read confirm
+read -r confirm
 
 case $confirm in
     y|Y)
