@@ -1,5 +1,7 @@
 # FontMM
 
+![](https://image.yule.ink/hero.png)
+
 FontMM 是一个用于在 Android 设备上一键生成 Magisk 字体模块的工具集
 
 **目前已适配系统：**
