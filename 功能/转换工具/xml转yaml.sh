@@ -44,7 +44,7 @@ unzip -oj "$SCRIPT_DIR/template/template.zip" \
 
 conversion "$WORK_DIR/tmp/fonts.xml" "$WORK_DIR/yaml/fonts.yaml"
 conversion "$WORK_DIR/tmp/font_fallback.xml" "$WORK_DIR/yaml/font_fallback.yaml"
-conversion "$WORK_DIR/tmp/fonts_base.xml" "$WORK_DIR/yaml/fonts_bass.yaml"
+conversion "$WORK_DIR/tmp/fonts_base.xml" "$WORK_DIR/yaml/fonts_base.yaml"
 conversion "$WORK_DIR/tmp/fonts_ule.xml" "$WORK_DIR/yaml/fonts_ule.yaml"
 
 echo

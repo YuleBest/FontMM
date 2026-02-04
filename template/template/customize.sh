@@ -27,15 +27,15 @@ FLASH_RENAMER() {
     [ -f "$MODPATH/ttf/en.ttf" ] && en="$MODPATH/ttf/en.ttf"
 
     # === 开始复制 + 校验 ===
-    copy_with_verify "$hant" "$MODPATH/system/fonts/SysSans-Hant-Regular.ttf"
-    copy_with_verify "$hans" "$MODPATH/system/fonts/SysSans-Hans-Regular.ttf"
-    copy_with_verify "$en"   "$MODPATH/system/fonts/SysSans-En-Regular.ttf"
+    COPY_WITH_VERIFY "$hant" "$MODPATH/system/fonts/SysSans-Hant-Regular.ttf"
+    COPY_WITH_VERIFY "$hans" "$MODPATH/system/fonts/SysSans-Hans-Regular.ttf"
+    COPY_WITH_VERIFY "$en"   "$MODPATH/system/fonts/SysSans-En-Regular.ttf"
 
-    copy_with_verify "$hans" "$MODPATH/system/fonts/SysFont-Static-Regular.ttf"
-    copy_with_verify "$hans" "$MODPATH/system/fonts/SysFont-Myanmar.ttf"
-    copy_with_verify "$hant" "$MODPATH/system/fonts/SysFont-Hant-Regular.ttf"
-    copy_with_verify "$hans" "$MODPATH/system/fonts/SysFont-Hans-Regular.ttf"
-    copy_with_verify "$hans" "$MODPATH/system/fonts/SysFont-Regular.ttf"
+    COPY_WITH_VERIFY "$hans" "$MODPATH/system/fonts/SysFont-Static-Regular.ttf"
+    COPY_WITH_VERIFY "$hans" "$MODPATH/system/fonts/SysFont-Myanmar.ttf"
+    COPY_WITH_VERIFY "$hant" "$MODPATH/system/fonts/SysFont-Hant-Regular.ttf"
+    COPY_WITH_VERIFY "$hans" "$MODPATH/system/fonts/SysFont-Hans-Regular.ttf"
+    COPY_WITH_VERIFY "$hans" "$MODPATH/system/fonts/SysFont-Regular.ttf"
 
     echo "所有字体复制、校验、权限设置完成"
 }

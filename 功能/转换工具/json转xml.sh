@@ -35,7 +35,7 @@ conversion() {
 
 conversion "$WORK_DIR/xml/fonts.xml" "$WORK_DIR/json/fonts.json"
 conversion "$WORK_DIR/xml/font_fallback.xml" "$WORK_DIR/json/font_fallback.json"
-conversion "$WORK_DIR/xml/fonts_base.xml" "$WORK_DIR/json/fonts_bass.json"
+conversion "$WORK_DIR/xml/fonts_base.xml" "$WORK_DIR/json/fonts_base.json"
 conversion "$WORK_DIR/xml/fonts_ule.xml" "$WORK_DIR/json/fonts_ule.json"
 
 echo "完成：$WORK_DIR/xml"
