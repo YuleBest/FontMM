@@ -1,4 +1,4 @@
--# shellcheck disable=SC2148
+# shellcheck disable=SC2148
 # FontMM ColorOS 16
 # 刷入脚本（带完整性校验）
 
