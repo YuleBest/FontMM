@@ -8,6 +8,7 @@
 SCRIPT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 WORK_DIR="$SCRIPT_DIR/WORK"
 export PATH="$PATH:$SCRIPT_DIR/功能/bin"
+FT_BIN="$SCRIPT_DIR/功能/bin/fonttool"
 clear
 
 # 环境检查
@@ -31,10 +32,13 @@ if ! file "$ttc_file" | grep -q "TrueType font collection"; then
     exit 2
 fi
 
-if ttc_splitter "$ttc_file" -o "$WORK_DIR/ttc_separated"; then
+echo "~ 正在使用 fonttool 拆分 TTC..."
+"$FT_BIN" split "$ttc_file" "$WORK_DIR/ttc_separated"
+
+if [ $? -eq 0 ]; then
     echo "~ 拆分成功"
     exit 0
 else
-    echo "! 有文件拆分失败"
+    echo "! 拆分失败"
     exit 3
 fi
