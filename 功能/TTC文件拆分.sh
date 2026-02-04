@@ -33,9 +33,7 @@ if ! file "$ttc_file" | grep -q "TrueType font collection"; then
 fi
 
 echo "~ 正在使用 fonttool 拆分 TTC..."
-"$FT_BIN" split "$ttc_file" "$WORK_DIR/ttc_separated"
-
-if [ $? -eq 0 ]; then
+if "$FT_BIN" split "$ttc_file" "$WORK_DIR/ttc_separated"; then
     echo "~ 拆分成功"
     exit 0
 else
