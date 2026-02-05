@@ -24,6 +24,7 @@ NC='\033[0m'
 BOLD='\033[1m'
 
 # --- 环境配置 ---
+# shellcheck disable=SC1091
 . "$SCRIPT_DIR/功能/bin/configurer.sh"
 
 # --- 计时开始 ---
@@ -81,6 +82,11 @@ extract_ttf_name() {
 CHECK_ENVIRONMENT() {
     local ARCH
     ARCH=$(uname -m)
+
+    if ! command -v bash >/dev/null 2>&1; then
+        log_err "请使用 Bash 环境运行（例如 MT 管理器 - 扩展包）"
+        exit 1
+    fi
     
     echo -e "${CYAN}>>${NC} 检查运行环境..."
     if [ "$EUID" -ne 0 ]; then
@@ -209,7 +215,7 @@ CALC_TIME() {
     END_TIME=$(date +%s.%N)
     # 计算差值并保留两位小数
     local DURATION
-    DURATION="$(echo "$END_TIME - $START_TIME" | bc 2>/dev/null || echo "0")"
+    DURATION="$(echo "$END_TIME - $START_TIME" | bc 2>/dev/null | awk '{printf "%.2f", $0}' || echo "0")"
     
     # prop 处理
     [ -f "$SCRIPT_DIR/module.prop.base" ] && mv "$SCRIPT_DIR/module.prop.base" "$SCRIPT_DIR/module.prop"
