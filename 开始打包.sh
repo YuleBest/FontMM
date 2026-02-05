@@ -5,7 +5,7 @@
 
 # --- 配置 ---
 COMP_LEVEL="9"
-USE_FONT_META="0" # 尝试使用中文简体字体元信息的名称作为模块的 name，开启后，module.prop 的自定义可能不生效。未成功解析时会自动返回到您的配置。设置为 1 开启，0 关闭。
+USE_FONT_META="1" # 尝试使用中文简体字体元信息的名称作为模块的 name，开启后，module.prop 的自定义可能不生效。未成功解析时会自动返回到您的配置。设置为 1 开启，0 关闭。
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 TEMP_DIR="$SCRIPT_DIR/template"
 TTF_DIR="$SCRIPT_DIR/ttf"
