@@ -2,6 +2,7 @@
 # FontMM - ColorOS 16 打包脚本
 # By Yule
 # shellcheck disable=SC2086
+set -euo pipefail
 
 # --- 配置 ---
 COMP_LEVEL="9"    # 模块压缩级别
