@@ -38,7 +38,10 @@ jobs:
 
           echo "Generated Filename: $FILENAME"
 
-          # 打包外层，排除掉源码目录 template/template/，保留生成的 template/template.zip
+          # 4. 清理根目录下可能存在的旧 zip 文件（避免重复打包）
+          rm -f ./*.zip
+
+          # 5. 打包外层，排除掉源码目录 template/template/，保留生成的 template/template.zip
           zip -r -9 "$FILENAME" . -x "*.git*" ".github*" "template/template/*"
 
           echo "ZIP_PATH=$FILENAME" >> $GITHUB_ENV
