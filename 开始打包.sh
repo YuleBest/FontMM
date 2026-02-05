@@ -6,12 +6,12 @@ set -euo pipefail
 
 # --- 配置 ---
 COMP_LEVEL="9"    # 模块压缩级别
-USE_FONT_META="1" # 尝试使用中文简体字体元信息的名称作为模块的 name，开启后，module.prop 的自定义可能不生效。未成功解析时会自动返回到您的配置。设置为 1 开启，0 关闭。
+USE_FONT_META="1" # 尝试使用中文简体字体元信息的名称作为模块的 name 和文件名，开启后，module.prop 的自定义可能不生效。未成功解析时会自动返回到您的配置。设置为 1 开启，0 关闭。
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 TEMP_DIR="$SCRIPT_DIR/template"
 TTF_DIR="$SCRIPT_DIR/ttf"
 BUILD_DIR="$SCRIPT_DIR/.build"
-MODULE_FILE="$SCRIPT_DIR/MODULE.zip"
+MODULE_FILE="$SCRIPT_DIR/MODULE.zip" # 若开启 USE_FONT_META，则模块名会根据字体名自动生成
 
 # --- 颜色定义 ---
 RED='\033[0;31m'
@@ -53,6 +53,7 @@ extract_ttf_name() {
     
     if [ "$COUNT" -eq 0 ]; then
         log_err "错误：未能在字体文件中找到任何名称信息，跳过提取"
+        return 1 # 退出函数
     elif [ "$COUNT" -eq 1 ]; then
         SELECTED_NAME="${NAMES[0]}"
         log_info "匹配到唯一名称: $SELECTED_NAME"
@@ -77,10 +78,14 @@ extract_ttf_name() {
     # prop 操作
     cp "$SCRIPT_DIR/module.prop" "$SCRIPT_DIR/module.prop.base"
     sed -i "s/^name=.*$/name=$SELECTED_NAME/" "$SCRIPT_DIR/module.prop"
+
+    MODULE_FILE="${SELECTED_NAME}.zip" # 更改模块文件名
+    return 0 # 成功
 }
 
 CHECK_ENVIRONMENT() {
     local ARCH
+    local MUST_TOOLS=("zip" "yq" "fonttool-rs")
     ARCH=$(uname -m)
 
     if ! command -v bash >/dev/null 2>&1; then
@@ -99,18 +104,12 @@ CHECK_ENVIRONMENT() {
         exit 1
     fi
     
-    if ! command -v zip >/dev/null 2>&1; then
-        log_err "未找到 zip 工具，请运行 pkg install zip"
-        exit 1
-    fi
-    if ! command -v yq >/dev/null 2>&1; then
-        log_err "未找到 ya 工具，请运行 pkg install yq"
-        exit 1
-    fi
-    if ! command -v fonttool-rs >/dev/null 2>&1; then
-        log_err "未找到 fonttool-rs 工具，请确认文件完整"
-        exit 1
-    fi
+    for tool in "${MUST_TOOLS[@]}"; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log_err "未找到 $tool 工具"
+            exit 1
+        fi
+    done
     
     log_succ "环境就绪"
 }
@@ -119,7 +118,7 @@ WELCOME() {
     clear
     echo -e "${PURPLE}${BOLD}======================================"
     echo -e "       FontMM - ColorOS 16 打包脚本"
-    echo -e "          Author: 于乐 Yule"
+    echo -e "            Author: 于乐 Yule"
     echo -e "======================================"${NC}
     echo ""
 }
@@ -204,7 +203,7 @@ PACKER() {
     )
     
     rm -rf "$BUILD_DIR/ttf"
-    mv "$TARGET_ZIP" "$SCRIPT_DIR/MODULE.zip"
+    mv "$TARGET_ZIP" "$MODULE_FILE"
     log_succ "资源已成功注入压缩包"
     log_info "清理构建目录..."
     rm -rf "$BUILD_DIR"

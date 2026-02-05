@@ -1,0 +1,50 @@
+name: Snapshot Package & Attach
+
+on: [push]
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Pull LFS objects
+        run: git lfs pull
+
+      - name: Pack Template and Final Zip
+        id: pack
+        run: |
+          # 1. 先把内部 template 文件夹打成 zip
+          # 进入目录操作是为了避免 zip 包里包含冗余的路径层级
+          cd template/template/
+          zip -r -9 "../template.zip" .
+          cd ../../
+
+          # 2. 清理不需要的文件
+          rm -f ./template/README.txt
+
+          # 3. 准备 Snapshot 包名
+          # 获取最近的 Tag，如果没有则用 v0.0.0-snapshot
+          TAG_NAME=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          LAST_COMMIT=$(git rev-parse --short HEAD)
+          FILENAME="FontMM-${TAG_NAME}-${LAST_COMMIT}-snapshot.zip"
+
+          echo "Generated Filename: $FILENAME"
+
+          # 打包外层，排除掉源码目录 template/template/，保留生成的 template/template.zip
+          zip -r -9 "$FILENAME" . -x "*.git*" ".github*" "template/template/*"
+
+          echo "ZIP_PATH=$FILENAME" >> $GITHUB_ENV
+
+      - name: Upload Snapshot Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_PATH }}
+          path: ${{ env.ZIP_PATH }}
