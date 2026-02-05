@@ -2,6 +2,6 @@
 ## yq
 - MIT license
 - https://github.com/mikefarah/yq/releases/tag/v4.52.2
-## fonttool
+## fonttool-rs
 - MIT license
-- https://github.com/fonttools/fonttools
+- https://github.com/YuleBest/fonttool-rs

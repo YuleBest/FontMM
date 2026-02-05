@@ -4,7 +4,7 @@
 # shellcheck disable=SC2086
 
 # --- 配置 ---
-COMP_LEVEL="9"
+COMP_LEVEL="9"    # 模块压缩级别
 USE_FONT_META="1" # 尝试使用中文简体字体元信息的名称作为模块的 name，开启后，module.prop 的自定义可能不生效。未成功解析时会自动返回到您的配置。设置为 1 开启，0 关闭。
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 TEMP_DIR="$SCRIPT_DIR/template"
@@ -23,7 +23,7 @@ NC='\033[0m'
 BOLD='\033[1m'
 
 # --- 环境配置 ---
-export PATH="$PATH:$SCRIPT_DIR/功能/bin"
+. "$SCRIPT_DIR/功能/bin/configurer.sh"
 
 # --- 计时开始 ---
 START_TIME=$(date +%s.%N)
@@ -34,56 +34,47 @@ log_succ() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WAIT]${NC} $1"; }
 log_err() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# --- 异常/退出清理函数 ---
+cleanup() {
+    log_info "清理临时文件，请稍后..."
+    rm -rf "/data/adb/local/tmp/fontmm"
+    exit
+}
+trap 'cleanup' EXIT
+
 extract_ttf_name() {
-    if [ -z "$1" ]; then
-        echo "Usage: $0 <font_file.ttf>"
-        exit 1
-    fi
-    FONT_FILE=$1
+    local FONT_FILE="$1"
     
-    # 提取逻辑：ttx -> yq -> 过滤 -> 去重
-    mapfile -t NAMES < <(fonttool ttx -t name -o - "$FONT_FILE" 2>/dev/null | \
-        yq -p xml -o json '.ttFont.name.namerecord[] | select(.["+@nameID"] == "1" or .["+@nameID"] == "16") | .["+content"]' | \
-        sed 's/^"//;s/"$//' | \
-        grep -v "null" | \
-        sort -u)
-    
-    # 检查结果数量
+    log_info "已开启使用字体名功能，正在提取字体 name 表..."
+    mapfile -t NAMES < <(fonttool-rs getname --input "$FONT_FILE" | sed '/^\s*$/d')
     COUNT=${#NAMES[@]}
     
     if [ "$COUNT" -eq 0 ]; then
-        echo "错误：未能解析到字体家族名称。" # 跳过解析
-        return 1
+        log_err "错误：未能在字体文件中找到任何名称信息，跳过提取"
     elif [ "$COUNT" -eq 1 ]; then
-        # 只有一个候选名，直接选定
         SELECTED_NAME="${NAMES[0]}"
-        echo "仅找到一个候选名称: $SELECTED_NAME"
+        log_info "匹配到唯一名称: $SELECTED_NAME"
     else
-        # 多个候选名，展示交互菜单
-        echo -e "\n-----------------------------------"
-        echo "发现多个 Font Family 候选名称："
+        log_warn "\n检测到 $COUNT 个结果，请选择一个："
         for i in "${!NAMES[@]}"; do
             printf "[%d] %s\n" "$((i+1))" "${NAMES[$i]}"
         done
-        echo "-----------------------------------"
     
-        read -r -p "请选择一个名称 (输入数字, 默认选 1): " CHOICE
-        CHOICE=${CHOICE:-1}
-    
-        # 简单校验输入合法性
-        if [[ ! "$CHOICE" =~ ^[0-9]+$ ]] || [ "$CHOICE" -lt 1 ] || [ "$CHOICE" -gt "$COUNT" ]; then
-            echo "无效选择，操作取消。"
-            exit 1
-        fi
-        SELECTED_NAME="${NAMES[$((CHOICE-1))]}"
-        log_succ "已确认名称: $SELECTED_NAME"
+        while true; do
+            read -r -p "请输入序号 (1-$COUNT): " CHOICE
+            if [[ "$CHOICE" =~ ^[0-9]+$ ]] && [ "$CHOICE" -ge 1 ] && [ "$CHOICE" -le "$COUNT" ]; then
+                SELECTED_NAME="${NAMES[$((CHOICE-1))]}"
+                break
+            else
+                log_err "输入无效，请输入 1 到 $COUNT 之间的数字。\n"
+            fi
+        done
     fi
-    echo
     
-    # 替换 prop
-    ttf_meta_name="$SELECTED_NAME"
+    log_info "你选择了: ${SELECTED_NAME}\n"
+    # prop 操作
     cp "$SCRIPT_DIR/module.prop" "$SCRIPT_DIR/module.prop.base"
-    sed -i "s/^name=.*$/name=$ttf_meta_name/" "$SCRIPT_DIR/module.prop"
+    sed -i "s/^name=.*$/name=$SELECTED_NAME/" "$SCRIPT_DIR/module.prop"
 }
 
 CHECK_ENVIRONMENT() {
@@ -109,8 +100,8 @@ CHECK_ENVIRONMENT() {
         log_err "未找到 ya 工具，请运行 pkg install yq"
         exit 1
     fi
-    if ! command -v fonttool >/dev/null 2>&1; then
-        log_err "未找到 fonttool 工具，请确认文件完整"
+    if ! command -v fonttool-rs >/dev/null 2>&1; then
+        log_err "未找到 fonttool-rs 工具，请确认文件完整"
         exit 1
     fi
     
@@ -208,6 +199,8 @@ PACKER() {
     rm -rf "$BUILD_DIR/ttf"
     mv "$TARGET_ZIP" "$SCRIPT_DIR/MODULE.zip"
     log_succ "资源已成功注入压缩包"
+    log_info "清理构建目录..."
+    rm -rf "$BUILD_DIR"
 }
 
 CALC_TIME() {

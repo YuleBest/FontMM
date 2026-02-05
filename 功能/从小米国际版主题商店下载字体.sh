@@ -6,7 +6,15 @@
 # 配置
 SCRIPT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 DOWN_DIR="$SCRIPT_DIR/download"
-export PATH="$PATH:$SCRIPT_DIR/功能/bin"
+. "$SCRIPT_DIR/功能/bin/configurer.sh"
+
+cleanup() {
+    echo "清理临时文件，请稍后..."
+    rm -rf "/data/adb/local/tmp/fontmm"
+    exit
+}
+trap 'cleanup' EXIT
+
 mkdir -p "$DOWN_DIR" >/dev/null 2>&1
 gr='\033[0;32m'
 ye='\033[1;33m'

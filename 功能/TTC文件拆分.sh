@@ -7,13 +7,20 @@
 # 配置
 SCRIPT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 WORK_DIR="$SCRIPT_DIR/WORK"
-export PATH="$PATH:$SCRIPT_DIR/功能/bin"
-FT_BIN="$SCRIPT_DIR/功能/bin/fonttool"
+. "$SCRIPT_DIR/功能/bin/configurer.sh"
 clear
 
+# shellcheck disable=SC2329
+cleanup() {
+    echo "清理临时文件，请稍后..."
+    rm -rf "/data/adb/local/tmp/fontmm"
+    exit
+}
+trap 'cleanup' EXIT
+
 # 环境检查
-if ! command -v yq >/dev/null 2>&1; then
-    echo -e "${re}[错误] 缺少 yq，请安装后重试${res}"
+if ! command -v fonttool-rs >/dev/null 2>&1; then
+    echo -e "${re}[错误] 缺少 fonttool-rs，请检查环境${res}"
     exit 1
 fi
 
@@ -33,8 +40,9 @@ if ! file "$ttc_file" | grep -q "TrueType font collection"; then
 fi
 
 echo "~ 正在使用 fonttool 拆分 TTC..."
-if "$FT_BIN" split "$ttc_file" "$WORK_DIR/ttc_separated"; then
+if fonttool-rs split -i "$ttc_file" -o "$WORK_DIR/ttc_separated"; then
     echo "~ 拆分成功"
+    echo "$WORK_DIR/ttc_separated"
     exit 0
 else
     echo "! 拆分失败"

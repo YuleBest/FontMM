@@ -7,8 +7,14 @@
 # 配置
 SCRIPT_DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
 WORK_DIR="$SCRIPT_DIR/WORK"
-export PATH="$PATH:$SCRIPT_DIR/功能/bin"
-mkdir -p "$DOWN_DIR" >/dev/null 2>&1
+. "$SCRIPT_DIR/功能/bin/configurer.sh"
+
+cleanup() {
+    echo "清理临时文件，请稍后..."
+    rm -rf "/data/adb/local/tmp/fontmm"
+    exit
+}
+trap 'cleanup' EXIT
 clear
 
 # 环境检查
