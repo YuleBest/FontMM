@@ -67,7 +67,7 @@ extract_ttf_name() {
         done
         echo "-----------------------------------"
     
-        read -p "请选择一个名称 (输入数字, 默认选 1): " CHOICE
+        read -r -p "请选择一个名称 (输入数字, 默认选 1): " CHOICE
         CHOICE=${CHOICE:-1}
     
         # 简单校验输入合法性
