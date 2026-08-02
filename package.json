@@ -1,0 +1,15 @@
+{
+  "name": "fontmm",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -C web dev",
+    "build": "pnpm -C web build && bash dev/cd.sh",
+    "build:only-web": "pnpm -C web build && bash dev/webzip.sh",
+    "lint": "pnpm -C web lint",
+    "fmt": "pnpm -C web fmt",
+    "fmt:check": "pnpm -C web fmt:check",
+    "type-check": "pnpm -C web type-check",
+    "shellcheck": "find src -name '*.sh' -print0 | xargs -0 shellcheck",
+    "shfmt": "find src -name '*.sh' -print0 | xargs -0 shfmt -i 4 -w -d"
+  }
+}

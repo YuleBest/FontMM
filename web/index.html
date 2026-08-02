@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>FontMM</title>
+  </head>
+  <body>
+    <!-- Top App Bar -->
+    <header class="top-app-bar">
+      <span class="top-app-bar__title">FontMM</span>
+      <div class="top-app-bar__actions">
+        <md-icon-button id="about-btn" aria-label="关于">
+          <md-icon>info</md-icon>
+        </md-icon-button>
+      </div>
+    </header>
+
+    <!-- 首页视图 -->
+    <main id="home-view" class="view view-home active">
+      <div id="slots"></div>
+    </main>
+
+    <!-- 字体测试视图 -->
+    <div id="test-view" class="view view-test">
+      <div id="test-status" class="test-status">正在加载字体...</div>
+
+      <div id="test-content" class="test-content" hidden>
+        <md-elevated-card class="test-card">
+          <div class="test-section-title">
+            中文简体 <span class="test-tag" id="hans-tag"></span>
+          </div>
+          <div class="test-sample test-sample-hans" id="test-hans">
+            简体中文测试：永和九年，岁在癸丑，暮春之初，会于会稽山阴之兰亭。
+          </div>
+        </md-elevated-card>
+
+        <md-elevated-card class="test-card">
+          <div class="test-section-title">
+            中文繁体 <span class="test-tag" id="hant-tag"></span>
+          </div>
+          <div class="test-sample" id="test-hant">
+            繁體中文測試：永和九年，歲在癸丑，暮春之初，會於會稽山陰之蘭亭。
+          </div>
+        </md-elevated-card>
+
+        <md-elevated-card class="test-card">
+          <div class="test-section-title">
+            英文 & 数字 <span class="test-tag" id="en-tag"></span>
+          </div>
+          <div class="test-sample" id="test-en">
+            The quick brown fox jumps over the lazy dog. 0123456789
+          </div>
+        </md-elevated-card>
+
+        <md-elevated-card class="test-card">
+          <div class="test-section-title">字重<span class="test-tag" id="weight-tag"></span></div>
+          <div class="test-var-note">若各字重显示相同，说明字体为静态单字重或未包含对应字重。</div>
+          <div class="test-w-row" style="font-weight: 100">
+            <span class="test-w-text">100 - 淡体 Thin</span>
+          </div>
+          <div class="test-w-row" style="font-weight: 200">
+            <span class="test-w-text">200 - 特细 ExtraLight</span>
+          </div>
+          <div class="test-w-row" style="font-weight: 300">
+            <span class="test-w-text">300 - 细体 Light</span>
+          </div>
+          <div class="test-w-row" style="font-weight: 400">
+            <span class="test-w-text">400 - 标准 Regular</span>
+          </div>
+          <div class="test-w-row" style="font-weight: 500">
+            <span class="test-w-text">500 - 适中 Medium</span>
+          </div>
+          <div class="test-w-row" style="font-weight: 600">
+            <span class="test-w-text">600 - 次粗 SemiBold</span>
+          </div>
+          <div class="test-w-row" style="font-weight: 700">
+            <span class="test-w-text">700 - 粗体 Bold</span>
+          </div>
+          <div class="test-w-row" style="font-weight: 800">
+            <span class="test-w-text">800 - 特粗 ExtraBold</span>
+          </div>
+          <div class="test-w-row" style="font-weight: 900">
+            <span class="test-w-text">900 - 浓体 Black</span>
+          </div>
+        </md-elevated-card>
+
+        <md-elevated-card class="test-card">
+          <div class="test-section-title">可变字体<span class="test-tag" id="var-tag"></span></div>
+          <div class="test-var-note">
+            拖动滑条调整字重，停止滑动后应用；仅对可变字体 (VF) 生效，静态字体下无变化。
+          </div>
+          <div class="test-wght-row">
+            <span class="test-wght-label">字重</span>
+            <md-slider
+              id="wght-slider"
+              min="100"
+              max="900"
+              step="1"
+              value="400"
+              aria-label="字重滑条"
+            ></md-slider>
+            <span class="test-wght-value" id="wght-value">400</span>
+          </div>
+          <div class="test-wght-row">
+            <span class="test-wght-label">字号</span>
+            <md-slider
+              id="size-slider"
+              min="12"
+              max="40"
+              step="1"
+              value="16"
+              aria-label="字号滑条"
+            ></md-slider>
+            <span class="test-wght-value" id="size-value">16</span>
+          </div>
+          <div class="test-var-preview" id="test-var-preview">400 - 标准 Regular</div>
+        </md-elevated-card>
+      </div>
+    </div>
+
+    <!-- 关于视图 -->
+    <div id="about-view" class="view view-about">
+      <div class="view-topbar">
+        <md-icon-button id="about-back" aria-label="返回">
+          <md-icon>arrow_back</md-icon>
+        </md-icon-button>
+        <span class="view-topbar-title">关于</span>
+      </div>
+
+      <md-elevated-card class="about-card">
+        <div class="about-logo">FontMM</div>
+        <div class="about-desc" id="about-desc">-</div>
+
+        <div class="about-list">
+          <div class="about-row">
+            <span class="about-row-label">版本</span>
+            <span class="about-row-value" id="about-version">-</span>
+          </div>
+          <div class="about-row">
+            <span class="about-row-label">versionCode</span>
+            <span class="about-row-value" id="about-version-code">-</span>
+          </div>
+          <div class="about-row">
+            <span class="about-row-label">作者</span>
+            <span class="about-row-value" id="about-author">-</span>
+          </div>
+          <div class="about-row">
+            <span class="about-row-label">模块 ID</span>
+            <span class="about-row-value" id="about-id">-</span>
+          </div>
+        </div>
+      </md-elevated-card>
+
+      <md-elevated-card class="about-card">
+        <div class="about-section-title">开源</div>
+        <p class="about-section-text">
+          本项目在 GitHub 开源，遵循 MIT 许可证，欢迎 Star / Issue / PR。
+        </p>
+        <div class="about-link">
+          <md-icon>code</md-icon>
+          <span>YuleBest/FontMM</span>
+          <a href="https://github.com/YuleBest/FontMM" target="_blank" rel="noopener noreferrer"
+            >打开</a
+          >
+        </div>
+      </md-elevated-card>
+
+      <md-elevated-card class="about-card">
+        <div class="about-section-title">致谢</div>
+        <p class="about-section-text">
+          界面基于 Material Design 3（Material Web）构建，运行于 KernelSU WebUI； 开发工具链使用
+          Oxc（oxlint / oxfmt）。感谢所有开源贡献者。
+        </p>
+      </md-elevated-card>
+
+      <div class="about-footer">FontMM · MIT License · ColorOS 16 字体模块</div>
+    </div>
+
+    <!-- 悬浮应用按钮 (仅首页, 向下滚动时隐藏) -->
+    <button id="apply-btn" class="fab" disabled aria-label="应用字体">
+      <md-icon>check_circle</md-icon>
+      <span>应用</span>
+    </button>
+
+    <!-- 日志弹窗 -->
+    <md-dialog id="log-dialog">
+      <div slot="headline">应用日志</div>
+      <div slot="content">
+        <pre
+          id="log-content"
+          style="white-space: pre-wrap; font-family: monospace; font-size: 0.8rem"
+        ></pre>
+      </div>
+      <div slot="actions">
+        <md-text-button id="log-close">关闭</md-text-button>
+      </div>
+    </md-dialog>
+
+    <!-- 底部导航栏 -->
+    <nav class="bottom-nav">
+      <md-navigation-bar id="nav-bar" active-index="0">
+        <md-navigation-tab label="首页">
+          <md-icon slot="active-icon">home</md-icon>
+          <md-icon slot="inactive-icon">home</md-icon>
+        </md-navigation-tab>
+        <md-navigation-tab label="字体测试">
+          <md-icon slot="active-icon">text_fields</md-icon>
+          <md-icon slot="inactive-icon">text_fields</md-icon>
+        </md-navigation-tab>
+      </md-navigation-bar>
+    </nav>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

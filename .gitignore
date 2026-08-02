@@ -1,7 +1,7 @@
-/.build/
-/ttf/*.ttf
-/MODULE.zip
-/template/template.zip
-/download/
-/shellcheck*
-/WORK/
+node_modules/
+web/node_modules/
+dist/
+src/webroot/
+reasonix.toml
+.reasonix/
+.agent/

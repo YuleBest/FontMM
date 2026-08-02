@@ -1,0 +1,571 @@
+@use './theme.scss';
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  user-select: none;
+}
+
+// ---------------- 1. Top App Bar ----------------
+.top-app-bar {
+  // 随页面滚动 (非 fixed)
+  display: flex;
+  align-items: center;
+  height: calc(64px + var(--top-inset, 0px));
+  padding: var(--top-inset, 0px) 24px 0 24px;
+  // 无边框无背景: 顶栏直接融入页面 (与内容区同底色)
+  background-color: transparent;
+
+  .top-app-bar__title {
+    font-size: var(--md-sys-typescale-title-large-size);
+    font-weight: var(--md-sys-typescale-title-large-weight);
+    line-height: var(--md-sys-typescale-title-large-line-height);
+    letter-spacing: var(--md-sys-typescale-title-large-tracking);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .top-app-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+}
+
+// 关于页隐藏顶栏 (自身带返回栏), 内容区相应缩减顶部留白
+body.no-top-bar {
+  .top-app-bar {
+    display: none;
+  }
+
+  .view-about {
+    padding-top: calc(var(--top-inset, 0px) + 16px);
+  }
+}
+
+// ---------------- 2. 视图容器 ----------------
+.view {
+  display: none;
+
+  &.active {
+    display: block;
+  }
+}
+
+.view-home,
+.view-test,
+.view-about {
+  max-width: 600px;
+  margin: 0 auto;
+  // 顶栏已在文档流中占位, 顶部仅留少量呼吸间距;
+  // 底部预留导航栏 + 吸底 CTA, 确保最后一张卡片能完整滑出不被遮挡
+  padding: 16px 16px calc(var(--bottom-inset, 0px) + 176px) 16px;
+}
+
+#slots {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// ---------------- 3. 首页槽位卡片 ----------------
+md-elevated-card.slot-card {
+  display: block;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  transition:
+    border-color var(--md-duration-standard) var(--md-easing-standard),
+    border-width var(--md-duration-standard) var(--md-easing-standard);
+  --md-elevated-card-container-color: var(--md-sys-color-surface-container-low);
+  --md-elevated-card-container-shape: var(--md-shape-corner-medium);
+  --md-elevated-card-container-elevation: 1;
+
+  // 已选择状态: 仅通过边框高亮区分 (不再使用 Badge / 图标)
+  &.selected {
+    border-color: var(--md-sys-color-primary);
+    border-width: 1.5px;
+  }
+
+  // 中文简体为必选: 边框恒用强调色 (tertiary)
+  &.slot-hans {
+    border-color: var(--md-sys-color-tertiary);
+    border-width: 1.5px;
+  }
+
+  .slot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+
+    .slot-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .slot-title {
+      font-size: var(--md-sys-typescale-title-medium-size);
+      font-weight: var(--md-sys-typescale-title-medium-weight);
+      line-height: var(--md-sys-typescale-title-medium-line-height);
+      color: var(--md-sys-color-on-surface);
+    }
+
+    // 选择/更换按钮位于卡片右上角
+    .slot-actions {
+      flex-shrink: 0;
+
+      md-outlined-button {
+        --md-outlined-button-container-shape: var(--md-shape-corner-small);
+        height: 40px;
+      }
+    }
+  }
+
+  // 取消 Card-in-Card: 文件名区域直接作为卡片内容, 不再嵌套浅色容器
+  .slot-file {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+
+    // 清除按钮位于字体名称左侧
+    .slot-clear {
+      flex-shrink: 0;
+    }
+
+    .slot-file-text {
+      flex: 1;
+      min-width: 0;
+
+      .slot-name {
+        font-size: var(--md-sys-typescale-title-medium-size);
+        font-weight: 600;
+        color: var(--md-sys-color-on-surface);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        &.placeholder {
+          font-weight: 400;
+          color: var(--md-sys-color-on-surface-variant);
+          opacity: 0.75; // 半透明: 直观表达"回退/继承"状态
+        }
+
+        // 简体必选提醒: 强调色
+        &.required {
+          font-weight: 600;
+          color: var(--md-sys-color-tertiary);
+          opacity: 1;
+        }
+      }
+
+      .slot-meta {
+        margin-top: 2px;
+        font-size: var(--md-sys-typescale-body-small-size);
+        color: var(--md-sys-color-outline);
+      }
+    }
+  }
+}
+
+// ---------------- 4. 悬浮应用按钮 (Extended FAB) ----------------
+.fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--bottom-inset, 0px) + 96px); // 位于底部导航栏上方
+  z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--md-shape-corner-large);
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    0 6px 12px rgba(0, 0, 0, 0.2);
+  font-size: var(--md-sys-typescale-label-large-size);
+  font-weight: var(--md-sys-typescale-label-large-weight);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--md-duration-standard) var(--md-easing-standard),
+    opacity var(--md-duration-standard) var(--md-easing-standard),
+    box-shadow var(--md-duration-standard) var(--md-easing-standard);
+
+  // 向下滚动时移出视口
+  &.fab-hidden {
+    transform: translateY(calc(100% + 24px));
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &:disabled {
+    // 应用进行中短暂禁用: 保持不透明外观, 仅禁止点击
+    pointer-events: none;
+  }
+
+  &:not(:disabled):active {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      0 3px 6px rgba(0, 0, 0, 0.25);
+  }
+}
+
+// ---------------- 5. 底部导航栏 ----------------
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 11;
+  background-color: var(--md-sys-color-surface-container);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  padding-bottom: var(--bottom-inset, 0px);
+
+  md-navigation-bar {
+    width: 100%;
+    height: 80px;
+    --md-navigation-bar-container-color: var(--md-sys-color-surface-container);
+    // 去掉底栏阴影, 与页面融为一体
+    --md-navigation-bar-container-elevation: 0;
+    box-shadow: none;
+  }
+}
+
+// ---------------- 6. 对话框 ----------------
+md-dialog {
+  --md-dialog-container-shape: var(--md-shape-corner-extra-large);
+}
+
+// ---------------- 7. 通用信息卡片 (关于 / 测试共用) ----------------
+.about-card,
+.test-card {
+  display: block;
+  padding: 20px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  --md-elevated-card-container-color: var(--md-sys-color-surface-container-low);
+  --md-elevated-card-container-shape: var(--md-shape-corner-medium);
+}
+
+// ---------------- 8. 关于视图 ----------------
+.view-topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  .view-topbar-title {
+    font-size: var(--md-sys-typescale-title-medium-size);
+    font-weight: var(--md-sys-typescale-title-medium-weight);
+    color: var(--md-sys-color-on-surface);
+  }
+}
+
+.view-about {
+  gap: 16px;
+
+  &.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .about-logo {
+    font-size: var(--md-sys-typescale-title-large-size);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--md-sys-color-primary);
+  }
+
+  .about-desc {
+    margin-top: 4px;
+    font-size: var(--md-sys-typescale-body-medium-size);
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .about-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+
+    .about-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      .about-row-label {
+        font-size: var(--md-sys-typescale-body-small-size);
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      .about-row-value {
+        font-size: var(--md-sys-typescale-body-medium-size);
+        font-weight: 600;
+        color: var(--md-sys-color-on-surface);
+      }
+    }
+  }
+
+  .about-section-title {
+    margin-bottom: 8px;
+    font-size: var(--md-sys-typescale-title-small-size);
+    font-weight: var(--md-sys-typescale-title-small-weight);
+    color: var(--md-sys-color-primary);
+  }
+
+  .about-section-text {
+    margin: 0 0 12px 0;
+    font-size: var(--md-sys-typescale-body-small-size);
+    line-height: 1.6;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .about-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--md-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+    font-size: var(--md-sys-typescale-body-medium-size);
+    color: var(--md-sys-color-on-surface);
+
+    md-icon {
+      color: var(--md-sys-color-primary);
+    }
+
+    a {
+      margin-left: auto;
+      color: var(--md-sys-color-primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+  }
+
+  .about-footer {
+    margin-top: 4px;
+    text-align: center;
+    font-size: var(--md-sys-typescale-label-small-size);
+    color: var(--md-sys-color-outline);
+  }
+}
+
+// ---------------- 9. 字体测试视图 ----------------
+.view-test {
+  gap: 16px;
+
+  &.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .test-status {
+    font-size: var(--md-sys-typescale-body-small-size);
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .test-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .test-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: var(--md-sys-typescale-title-small-size);
+    font-weight: var(--md-sys-typescale-title-small-weight);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .test-tag {
+    padding: 1px 8px;
+    border-radius: var(--md-shape-corner-extra-small);
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+    font-size: var(--md-sys-typescale-label-small-size);
+    font-weight: var(--md-sys-typescale-label-small-weight);
+    white-space: nowrap;
+  }
+
+  .test-sample {
+    font-size: var(--md-sys-typescale-body-large-size);
+    line-height: 1.7;
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .test-var-note {
+    margin-bottom: 10px;
+    font-size: var(--md-sys-typescale-body-small-size);
+    color: var(--md-sys-color-outline);
+  }
+
+  .test-w-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--md-sys-color-outline-variant);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .test-w-text {
+      font-size: var(--md-sys-typescale-body-medium-size);
+      color: var(--md-sys-color-on-surface);
+    }
+  }
+
+  .test-wght-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+
+    .test-wght-label {
+      flex-shrink: 0;
+      font-size: var(--md-sys-typescale-body-small-size);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    md-slider {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .test-wght-value {
+      flex-shrink: 0;
+      min-width: 3ch;
+      text-align: right;
+      font-size: var(--md-sys-typescale-label-large-size);
+      font-weight: var(--md-sys-typescale-label-large-weight);
+      font-variant-numeric: tabular-nums;
+      color: var(--md-sys-color-primary);
+    }
+  }
+
+  .test-var-preview {
+    font-size: var(--md-sys-typescale-body-large-size);
+    line-height: 1.7;
+    color: var(--md-sys-color-on-surface);
+  }
+}
+
+// ---------------- 10. 文件选择器 Dialog ----------------
+.font-picker-dialog {
+  --md-dialog-container-shape: var(--md-shape-corner-extra-large);
+  --md-dialog-container-color: var(--md-sys-color-surface);
+  max-width: 560px;
+  width: 90vw;
+
+  &::part(headline) {
+    padding: 20px 24px 12px 24px;
+    text-align: left;
+  }
+
+  .picker-header {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+
+    .picker-title-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+
+      .picker-back {
+        margin-left: -8px;
+        flex-shrink: 0;
+      }
+
+      .picker-path-group {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        text-align: left;
+        min-width: 0;
+        flex: 1;
+
+        .picker-subtitle {
+          font-size: var(--md-sys-typescale-label-medium-size);
+          color: var(--md-sys-color-primary);
+          font-weight: var(--md-sys-typescale-label-medium-weight);
+        }
+
+        .picker-path-text {
+          width: 100%;
+          font-size: var(--md-sys-typescale-title-medium-size);
+          font-weight: 700;
+          color: var(--md-sys-color-on-surface);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+    }
+  }
+
+  .picker-content {
+    padding: 8px 0;
+    max-height: 50vh;
+    overflow-y: auto;
+
+    .picker-list {
+      background: transparent;
+      padding: 0;
+
+      .picker-item {
+        border-radius: var(--md-shape-corner-medium);
+        margin-bottom: 4px;
+        cursor: pointer;
+
+        .item-icon {
+          color: var(--md-sys-color-primary);
+        }
+
+        &.is-file .item-icon {
+          color: var(--md-sys-color-tertiary);
+        }
+
+        .item-name {
+          font-size: var(--md-sys-typescale-body-medium-size);
+          font-weight: 500;
+        }
+      }
+    }
+
+    .picker-empty,
+    .picker-loading,
+    .picker-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      gap: 8px;
+      color: var(--md-sys-color-outline);
+      font-size: var(--md-sys-typescale-body-small-size);
+    }
+  }
+}

@@ -1,0 +1,176 @@
+@import url('https://mui.kernelsu.org/internal/insets.css');
+@import url('https://mui.kernelsu.org/internal/colors.css');
+
+:root {
+  --top-inset: var(--window-inset-top, 0px);
+  --bottom-inset: var(--window-inset-bottom, 0px);
+
+  --md-focus-ring-color: transparent;
+
+  // ============ MD3 形状 tokens ============
+  --md-shape-corner-none: 0px;
+  --md-shape-corner-extra-small: 4px;
+  --md-shape-corner-small: 8px;
+  --md-shape-corner-medium: 12px;
+  --md-shape-corner-large: 16px;
+  --md-shape-corner-extra-large: 28px;
+  --md-shape-corner-full: 9999px;
+
+  // ============ MD3 动效 tokens ============
+  --md-duration-standard: 300ms;
+  --md-duration-standard-decelerate: 250ms;
+  --md-duration-standard-accelerate: 200ms;
+  --md-duration-emphasized: 500ms;
+  --md-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --md-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+  // ============ MD3 字阶 tokens ============
+  --md-sys-typescale-title-large-size: 1.375rem; // 22sp
+  --md-sys-typescale-title-large-weight: 400;
+  --md-sys-typescale-title-large-line-height: 1.75rem; // 28sp
+  --md-sys-typescale-title-large-tracking: 0em;
+
+  --md-sys-typescale-title-medium-size: 1rem; // 16sp
+  --md-sys-typescale-title-medium-weight: 500;
+  --md-sys-typescale-title-medium-line-height: 1.5rem; // 24sp
+  --md-sys-typescale-title-medium-tracking: 0.0094em;
+
+  --md-sys-typescale-title-small-size: 0.875rem; // 14sp
+  --md-sys-typescale-title-small-weight: 500;
+  --md-sys-typescale-title-small-line-height: 1.25rem; // 20sp
+  --md-sys-typescale-title-small-tracking: 0.0063em;
+
+  --md-sys-typescale-body-large-size: 1rem; // 16sp
+  --md-sys-typescale-body-large-weight: 400;
+  --md-sys-typescale-body-large-line-height: 1.5rem; // 24sp
+  --md-sys-typescale-body-large-tracking: 0.0313em;
+
+  --md-sys-typescale-body-medium-size: 0.875rem; // 14sp
+  --md-sys-typescale-body-medium-weight: 400;
+  --md-sys-typescale-body-medium-line-height: 1.25rem; // 20sp
+  --md-sys-typescale-body-medium-tracking: 0.0156em;
+
+  --md-sys-typescale-body-small-size: 0.75rem; // 12sp
+  --md-sys-typescale-body-small-weight: 400;
+  --md-sys-typescale-body-small-line-height: 1rem; // 16sp
+  --md-sys-typescale-body-small-tracking: 0.025em;
+
+  --md-sys-typescale-label-large-size: 0.875rem; // 14sp
+  --md-sys-typescale-label-large-weight: 500;
+  --md-sys-typescale-label-large-line-height: 1.25rem; // 20sp
+  --md-sys-typescale-label-large-tracking: 0.0063em;
+
+  --md-sys-typescale-label-medium-size: 0.75rem; // 12sp
+  --md-sys-typescale-label-medium-weight: 500;
+  --md-sys-typescale-label-medium-line-height: 1rem; // 16sp
+  --md-sys-typescale-label-medium-tracking: 0.0313em;
+
+  --md-sys-typescale-label-small-size: 0.6875rem; // 11sp
+  --md-sys-typescale-label-small-weight: 500;
+  --md-sys-typescale-label-small-line-height: 1rem; // 16sp
+  --md-sys-typescale-label-small-tracking: 0.0313em;
+
+  // ============ MD3 颜色 tokens - Light ============
+  --md-sys-color-primary: var(--primary, #6750a4);
+  --md-sys-color-on-primary: var(--onPrimary, #ffffff);
+  --md-sys-color-primary-container: var(--primaryContainer, #eaddff);
+  --md-sys-color-on-primary-container: var(--onPrimaryContainer, #21005d);
+
+  --md-sys-color-secondary: var(--secondary, #625b71);
+  --md-sys-color-on-secondary: var(--onSecondary, #ffffff);
+  --md-sys-color-secondary-container: var(--secondaryContainer, #e8def8);
+  --md-sys-color-on-secondary-container: var(--onSecondaryContainer, #1d192b);
+
+  --md-sys-color-tertiary: var(--tertiary, #7d5260);
+  --md-sys-color-on-tertiary: var(--onTertiary, #ffffff);
+  --md-sys-color-tertiary-container: var(--tertiaryContainer, #ffd8e4);
+  --md-sys-color-on-tertiary-container: var(--onTertiaryContainer, #31111d);
+
+  --md-sys-color-error: #b3261e;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #f9dedc;
+  --md-sys-color-on-error-container: #410e0b;
+
+  --md-sys-color-background: var(--background, #fef7ff);
+  --md-sys-color-on-background: var(--onBackground, #1d1b20);
+
+  --md-sys-color-surface: var(--surface, #fef7ff);
+  --md-sys-color-on-surface: var(--onSurface, #1d1b20);
+  --md-sys-color-surface-variant: var(--surfaceVariant, #e7e0ec);
+  --md-sys-color-on-surface-variant: var(--onSurfaceVariant, #49454f);
+
+  --md-sys-color-surface-dim: #ded8e1;
+  --md-sys-color-surface-bright: #fef7ff;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: var(--surfaceContainerLow, #f7f2fa);
+  --md-sys-color-surface-container: var(--surfaceContainer, #f3edf7);
+  --md-sys-color-surface-container-high: var(--surfaceContainerHigh, #ece6f0);
+  --md-sys-color-surface-container-highest: #e6e0e9;
+
+  --md-sys-color-inverse-surface: #322f35;
+  --md-sys-color-inverse-on-surface: #f5eff7;
+  --md-sys-color-inverse-primary: #d0bcff;
+
+  --md-sys-color-outline: var(--outline, #79747e);
+  --md-sys-color-outline-variant: var(--outlineVariant, #cac4d0);
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-scrim: #000000;
+}
+
+// ============ MD3 深色颜色 tokens ============
+// 跟随 KernelSU 注入的壁纸动态色 (Material You 取色)
+@mixin dark-tokens {
+  --md-sys-color-primary: var(--primary, #d0bcff);
+  --md-sys-color-on-primary: var(--onPrimary, #381e72);
+  --md-sys-color-primary-container: var(--primaryContainer, #4f378b);
+  --md-sys-color-on-primary-container: var(--onPrimaryContainer, #eaddff);
+
+  --md-sys-color-secondary: var(--secondary, #ccc2dc);
+  --md-sys-color-on-secondary: var(--onSecondary, #332d41);
+  --md-sys-color-secondary-container: var(--secondaryContainer, #4a4458);
+  --md-sys-color-on-secondary-container: var(--onSecondaryContainer, #e8def8);
+
+  --md-sys-color-tertiary: var(--tertiary, #efb8c8);
+  --md-sys-color-on-tertiary: var(--onTertiary, #492532);
+  --md-sys-color-tertiary-container: var(--tertiaryContainer, #633b48);
+  --md-sys-color-on-tertiary-container: var(--onTertiaryContainer, #ffd8e4);
+
+  --md-sys-color-error: #f2b8b5;
+  --md-sys-color-on-error: #601410;
+  --md-sys-color-error-container: #8c1d18;
+  --md-sys-color-on-error-container: #f9dedc;
+
+  --md-sys-color-background: var(--background, #141218);
+  --md-sys-color-on-background: var(--onBackground, #e6e0e9);
+
+  --md-sys-color-surface: var(--surface, #141218);
+  --md-sys-color-on-surface: var(--onSurface, #e6e0e9);
+  --md-sys-color-surface-variant: var(--surfaceVariant, #49454f);
+  --md-sys-color-on-surface-variant: var(--onSurfaceVariant, #cac4d0);
+
+  --md-sys-color-surface-dim: #141218;
+  --md-sys-color-surface-bright: #3b383e;
+  --md-sys-color-surface-container-lowest: #0f0d13;
+  --md-sys-color-surface-container-low: var(--surfaceContainerLow, #1d1b20);
+  --md-sys-color-surface-container: var(--surfaceContainer, #211f26);
+  --md-sys-color-surface-container-high: var(--surfaceContainerHigh, #2b2930);
+  --md-sys-color-surface-container-highest: #36343b;
+
+  --md-sys-color-inverse-surface: #e6e0e9;
+  --md-sys-color-inverse-on-surface: #322f35;
+  --md-sys-color-inverse-primary: #6750a4;
+
+  --md-sys-color-outline: var(--outline, #938f99);
+  --md-sys-color-outline-variant: var(--outlineVariant, #49454f);
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-scrim: #000000;
+}
+
+// 跟随系统深浅色
+@media (prefers-color-scheme: dark) {
+  :root {
+    @include dark-tokens;
+  }
+}

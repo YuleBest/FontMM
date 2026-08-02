@@ -1,0 +1,17 @@
+{
+  // 官方推荐: https://oxc.rs/docs/guide/usage/linter/editors.html
+  //           https://oxc.rs/docs/guide/usage/formatter/editors.html
+  // 使用 Oxc 扩展 (oxlint --lsp / oxfmt --lsp), 需本地安装 oxlint 与 oxfmt
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "always"
+  },
+  // 显式指定 JavaScript/TypeScript 由 oxfmt 格式化
+  "[javascript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  }
+}
