@@ -12,15 +12,19 @@ command -v zip >/dev/null 2>&1 || {
     exit 1
 }
 
-# 1. 从 module.prop 读版本号: version=26.8.0(260800001) -> 完整保留, 不是纯数字
+# 1. 从 module.prop 读版本号: version=26.8.0-beta.1(260800001)
 VERSION="$(sed -n 's/^version=//p' "$PROP_FILE" 2>/dev/null | head -n 1 | tr -d '\r' || true)"
 if [ -z "$VERSION" ]; then
     echo "[!] 无法从 $PROP_FILE 读取 version 字段" >&2
     exit 1
 fi
 
-PRE_OUT="$DIST_DIR/FontMM_v${VERSION}_preplace.zip"
-TPL_OUT="$DIST_DIR/FontMM_v${VERSION}_template.zip"
+# 文件名安全化: 括号 -> 点 (GitHub Release 网页上传会把括号改写为点, 导致 URL 不一致)
+# 26.8.0-beta.1(260800001) -> 26.8.0-beta.1.260800001
+FILE_VERSION="$(printf '%s' "$VERSION" | sed 's/(/./g; s/)//g')"
+
+PRE_OUT="$DIST_DIR/FontMM_v${FILE_VERSION}_preplace.zip"
+TPL_OUT="$DIST_DIR/FontMM_v${FILE_VERSION}_template.zip"
 
 mkdir -p "$DIST_DIR"
 rm -f "$PRE_OUT" "$TPL_OUT"   # 先删旧的, 防止 zip 增量更新残留已删除的文件

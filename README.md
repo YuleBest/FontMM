@@ -166,7 +166,7 @@ pnpm build
 
    产物均校验内含 `module.prop` 防止打包错目录；template 版额外校验 `FONTS/` 下不含字体文件。
 
-产物示例：`dist/FontMM_v26.8.0(260800001)_preplace.zip`（注意版本号带括号，shell 中使用请加引号）。
+产物示例：`dist/FontMM_v26.8.0-beta.1.260800001_preplace.zip`（版本号中的括号已替换为点，文件名不含特殊字符）。
 
 ### 代码检查
 
@@ -215,8 +215,8 @@ A：不会。`customize.sh` 检测到已安装的 FontMM 时会进入更新模�
 **Q：`system/fonts/` 里的字体文件为什么是 0 字节？**
 A：那是占位文件，安装或应用字体时会被真实字体覆盖，详见「占位字体机制」。
 
-**Q：zip 文件名里的括号在终端里打不开？**
-A：版本号形如 `26.8.0(260800001)`，在 shell 中请用引号包裹：`unzip "FontMM_v26.8.0(260800001)_preplace.zip"`。
+**Q：zip 文件名里的版本号怎么是点分隔的？**
+A：`module.prop` 的 `version` 形如 `26.8.0-beta.1(260800001)`，打包时文件名会把括号替换为点（GitHub Release 上传会改写括号，避免 URL 不一致），如 `FontMM_v26.8.0-beta.1.260800001_template.zip`，不含特殊字符可直接使用。
 
 ## 致谢
 
