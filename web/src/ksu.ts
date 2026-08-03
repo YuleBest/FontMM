@@ -73,12 +73,16 @@ async function mockExec(command: string): Promise<ExecResult> {
 
 export async function exec(command: string): Promise<ExecResult> {
   if (import.meta.env.DEV) return mockExec(command);
+  // KernelSU-Next 等分支的 ksu API 可能与 KernelSU 不一致, 缺失时优雅降级
+  if (typeof ksuExec !== 'function') {
+    return { errno: 1, stdout: '', stderr: 'kernelsu exec API 不可用' };
+  }
   return ksuExec(command);
 }
 
 export function toast(msg: string): void {
   if (import.meta.env.DEV) console.log('[toast]', msg);
-  else ksuToast(msg);
+  else if (typeof ksuToast === 'function') ksuToast(msg);
 }
 
 // 模块信息 (module.prop 风格文本), dev 模式返回模拟数据
@@ -87,23 +91,26 @@ export function moduleInfo(): string {
     return [
       'id=FontMM',
       'name=FontMM',
-      'version=26.8.0(260800001)',
+      'version=26.8.0-beta.1(260800001)',
       'versionCode=26080001',
       'author=Yule',
       'description=ColorOS 16 字体模块模板',
     ].join('\n');
   }
-  return ksuModuleInfo();
+  if (typeof ksuModuleInfo === 'function') return ksuModuleInfo();
+  return '';
 }
 
 // 全屏: 让 WebView 内容延伸到状态栏 / 底部导航栏(小白条) 下方
 export function fullScreen(enabled: boolean): void {
   if (import.meta.env.DEV) return;
-  ksuFullScreen(enabled);
+  // KernelSU-Next 可能未实现该 API, 缺失时忽略 (退回默认安全区)
+  if (typeof ksuFullScreen === 'function') ksuFullScreen(enabled);
 }
 
 // edge-to-edge: 启用安全区 insets (配合 insets.css 的 --window-inset-* 变量)
 export function enableEdgeToEdge(enabled: boolean): void {
   if (import.meta.env.DEV) return;
-  ksuEnableEdgeToEdge(enabled);
+  // KernelSU-Next 可能未实现该 API (实测 undefined), 缺失时忽略
+  if (typeof ksuEnableEdgeToEdge === 'function') ksuEnableEdgeToEdge(enabled);
 }
