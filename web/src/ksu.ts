@@ -1,10 +1,4 @@
-import {
-  exec as ksuExec,
-  toast as ksuToast,
-  moduleInfo as ksuModuleInfo,
-  fullScreen as ksuFullScreen,
-  enableEdgeToEdge as ksuEnableEdgeToEdge,
-} from 'kernelsu';
+import { exec as ksuExec, toast as ksuToast, moduleInfo as ksuModuleInfo } from 'kernelsu';
 
 export interface ExecResult {
   errno: number;
@@ -104,13 +98,31 @@ export function moduleInfo(): string {
 // 全屏: 让 WebView 内容延伸到状态栏 / 底部导航栏(小白条) 下方
 export function fullScreen(enabled: boolean): void {
   if (import.meta.env.DEV) return;
-  // KernelSU-Next 可能未实现该 API, 缺失时忽略 (退回默认安全区)
-  if (typeof ksuFullScreen === 'function') ksuFullScreen(enabled);
+  // 直接调用全局 ksu (绕过 npm 包封装), KernelSU-Next 分支缺失/命名不同时忽略
+  try {
+    const ksuApi = (window as any).ksu as Record<string, unknown> | undefined;
+    if (ksuApi && typeof ksuApi.fullScreen === 'function') {
+      (ksuApi.fullScreen as (v: boolean) => void)(enabled);
+    }
+  } catch {
+    // 忽略
+  }
 }
 
 // edge-to-edge: 启用安全区 insets (配合 insets.css 的 --window-inset-* 变量)
 export function enableEdgeToEdge(enabled: boolean): void {
   if (import.meta.env.DEV) return;
-  // KernelSU-Next 可能未实现该 API (实测 undefined), 缺失时忽略
-  if (typeof ksuEnableEdgeToEdge === 'function') ksuEnableEdgeToEdge(enabled);
+  // 关键: 不能检查 npm 包的 import 绑定 (它始终存在, 真正的 TypeError 在包内部
+  // 调用 ksu.enableEdgeToEdge 时抛出, 会中断整个脚本)。必须直接检查全局 ksu 对象。
+  // KernelSU: enableEdgeToEdge; KernelSU-Next: enableInsets (命名不同)
+  try {
+    const ksuApi = (window as any).ksu as Record<string, unknown> | undefined;
+    if (!ksuApi) return;
+    const fn = (ksuApi.enableEdgeToEdge ?? ksuApi.enableInsets) as
+      | ((v: boolean) => void)
+      | undefined;
+    if (typeof fn === 'function') fn(enabled);
+  } catch {
+    // 忽略
+  }
 }
