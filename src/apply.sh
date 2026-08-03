@@ -57,10 +57,11 @@ fi
 
 echo "[*] 处理等宽字体..."
 if [ -f "$FONTS_DIR/mono.ttf" ]; then
-    install_from "$FONTS_DIR/mono.ttf" 'DroidSansMono.ttf'
+    # 复制为模块独立文件 FontMM-Mono.ttf (不覆盖系统 DroidSansMono, 避免同名 overlay 失效)
+    install_from "$FONTS_DIR/mono.ttf" 'FontMM-Mono.ttf'
 else
-    echo "[-] 未设置等宽字体, 不覆盖系统 DroidSansMono.ttf"
-    rm -f "$SYS_FONT_DIR/DroidSansMono.ttf"
+    echo "[-] 未设置等宽字体, 不覆盖系统等宽字体"
+    rm -f "$SYS_FONT_DIR/FontMM-Mono.ttf"
 fi
 
 echo "[*] 全部完成, 重启后生效"

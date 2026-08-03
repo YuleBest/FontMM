@@ -226,6 +226,8 @@
     <alias name="ITC Stone Serif" to="serif" />
 
     <family name="monospace">
+        <!-- 用户等宽字体 (模块新建, 未设置时不存在则用系统 DroidSansMono 兜底) -->
+        <font weight="400" style="normal">FontMM-Mono.ttf</font>
         <font weight="400" style="normal">DroidSansMono.ttf</font>
     </family>
     <alias name="sans-serif-monospace" to="monospace" />
