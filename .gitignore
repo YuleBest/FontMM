@@ -5,3 +5,5 @@ src/webroot/
 reasonix.toml
 .reasonix/
 .agent/
+
+.ref/

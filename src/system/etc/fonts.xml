@@ -1797,4 +1797,64 @@
             <axis tag="wght" stylevalue="700"/>
         </font>
     </family>
+
+    <!-- 补充字库 (OFL-1.1): 全局 fallback, 兜底用户字体与系统字体未覆盖的字形
+         (CJK 扩展区、Archaic Cuneiform Numerals、最新 Unicode 等)。
+         无名 family 进入默认 fallback 链, 按顺序兜底 -->
+    <family>
+        <font weight="400" style="normal">PlangothicP1.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">PlangothicP2.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">PlanschriftSeal-Regular.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">MFGA.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">BraillePatterns.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">NotoSansPro.otf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">UnicodiaFunky.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">ArchaicCuneiformNumerals.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Unicode18-new.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Unicode17-new.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">SatisarSharada-Regular.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Unicode16-new.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Unknown-symbol-supplementRegular.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">NotoUnicode.otf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Tibetan-Regular.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Private-UseTest.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">ZUno-Number.ttf</font>
+    </family>
+
+    <!-- 表情补充: 跟随系统 emoji (und-Zsye) fallback 兜底 -->
+    <family lang="und-Zsye">
+        <font weight="400" style="normal">NotoColorEmoji.ttf</font>
+    </family>
 </familyset>

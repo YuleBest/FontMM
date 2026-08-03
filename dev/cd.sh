@@ -29,6 +29,9 @@ TPL_OUT="$DIST_DIR/FontMM_v${FILE_VERSION}_template.zip"
 mkdir -p "$DIST_DIR"
 rm -f "$PRE_OUT" "$TPL_OUT"   # 先删旧的, 防止 zip 增量更新残留已删除的文件
 
+# 0. 同步派生字体配置 (fonts.xml 为唯一源, 复制生成 fonts_base/ule/font_fallback 等)
+bash "$ROOT_DIR/dev/sync-fonts-xml.sh"
+
 # 2. 打包函数: $1=输出路径, $2=额外排除模式 (可选)
 #    (zip 根 = 模块根, 不含 src 这层目录)
 pack() {

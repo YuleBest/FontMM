@@ -70,6 +70,20 @@ FontMM 是一个用于在 Android 设备上一键更换系统字体的 **Magisk 
 
 **回退规则**：`hant.ttf` / `en.ttf` 缺失时，对应槽位自动使用 `hans.ttf`；`hans.ttf` 缺失时 `apply.sh` 直接报错退出（WebUI 也会禁用「应用」按钮）。`mono.ttf` 未设置时**不覆盖**系统等宽字体（`DroidSansMono.ttf` 保持系统原生）。
 
+### 补充字库
+
+模块内置一组补充字体（OFL-1.1 / MIT 许可），作为 `fonts.xml` 末尾的全局 fallback，兜底用户字体与系统字体未覆盖的字形（CJK 扩展区生僻字、最新 Unicode 字符、小篆等）：
+
+| 字体 | 说明 |
+| --- | --- |
+| `PlangothicP1/P2.ttf` | CJK 扩展区覆盖（Ext-B、G/H、**I、J** 等生僻字与新汉字） |
+| `PlanschriftSeal-Regular.ttf` | **Seal（小篆）区块 11328 字符全覆盖**（Unicode 18 新增，子集化 34M；MIT/OFL 双许可，源自 [Planschrift_Project](https://github.com/Fitzgerald-Porthmouth-Koenigsegg/Planschrift_Project)） |
+| `NotoSansPro.otf` | 多 Noto 家族合并，覆盖广泛语言字形 |
+| `Unicode16/17/18-new.ttf` | Unicode 最新版本已定义字符覆盖 |
+| `ZUno-Number.ttf` | 保留符号 / 私用区未定义符号显示编码信息 |
+
+补充字库不参与用户槽位替换（`SysFont*` / `SysSans*` 槽位规则不变），仅在缺字形时按顺序兜底。字体来源与许可详见模块内 `system/fonts/LICENSE-*` 及 [MakeFontsGreatAgain](https://github.com/Numbersf/MakeFontsGreatAgain) 的 LICENSES。
+
 ## 工作原理
 
 ```
@@ -122,6 +136,8 @@ FontMM/
 │   ├── cd.sh                   # 打包模块 zip（preplace / template 两版）→ dist/
 │   ├── ci.sh                   # shellcheck + shfmt 检查（在 Termux 中运行）
 │   ├── webzip.sh               # 仅打包 WebUI 产物 → dist/webroot.zip
+│   ├── sync-fonts-xml.sh       # 以 fonts.xml 为唯一源生成派生字体配置
+│   ├── check-unicode-coverage.py # 本地模拟字体 fallback, 统计 Unicode 区块覆盖
 │   └── empty_font.sh           # 生成 0 字节占位字体
 ├── package.json                # pnpm workspace 根
 ├── web/package.json            # WebUI 依赖与脚本
@@ -179,6 +195,15 @@ bash dev/ci.sh   # src/ 下所有 .sh 的 shellcheck + shfmt 检查
 
 - 前端 lint/format 由 [oxlint](https://oxc.rs/) 与 [oxfmt](https://oxc.rs/) 提供，配置在 `web/.oxlintrc.json`（`correctness` 类别 + typescript/unicorn/oxc 插件）与 `web/.oxfmtrc.json`（`singleQuote: true`，与代码风格一致）
 - `dev/ci.sh` 对 `src/` 下所有 `.sh` 依次执行 `shellcheck` 校验与 `shfmt` 格式检查（`-i 4`）。脚本预设了 Termux 的 PATH/`LD_LIBRARY_PATH`，可在 Android 的 Termux 中直接运行
+
+### Unicode 覆盖测试
+
+```bash
+python3 dev/check-unicode-coverage.py                        # 全部区块
+python3 dev/check-unicode-coverage.py "Archaic" "Seal"       # 只测指定区块
+```
+
+本地模拟 `fonts.xml` 的 fallback 链（fontTools 读取 `src/system/fonts/` 各字体 cmap），对照 Unicode Blocks.txt 统计每个区块覆盖率（首次运行自动下载 Blocks.txt 缓存到 `dev/`）。改字体或映射后无需真机即可回归验证。
 
 ### 占位字体机制
 

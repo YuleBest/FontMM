@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
+    DEPRECATED: This XML file is no longer a source of the font files installed
+    in the system.
+
+    For the device vendors: please add your font configurations to the
+    platform/frameworks/base/data/font_fallback.xml and also add it to this XML
+    file as much as possible for apps that reads this XML file.
+
+    For the application developers: please stop reading this XML file and use
+    android.graphics.fonts.SystemFonts#getAvailableFonts Java API or
+    ASystemFontIterator_open NDK API for getting list of system installed
+    font files.
+
     WARNING: Parsing of this file by third-party apps is not supported. The
     file, and the font files it refers to, will be renamed and/or moved out
     from their respective location in the next Android release, and/or the
@@ -24,6 +36,53 @@
 <familyset version="23">
     <!-- first font is default -->
     <family name="sans-serif">
+        <font weight="100" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="100" />
+        </font>
+        <font weight="200" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="200" />
+        </font>
+        <font weight="300" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="300" />
+        </font>
+        <font weight="400" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="400" />
+        </font>
+        <font weight="500" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="500" />
+        </font>
+        <font weight="600" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="600" />
+        </font>
+        <font weight="700" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="700" />
+        </font>
+        <font weight="800" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="800" />
+        </font>
+        <font weight="900" style="normal">SysFont-Regular.ttf
+            <axis tag="ital" stylevalue="0" />
+            <axis tag="wdth" stylevalue="100" />
+            <axis tag="wght" stylevalue="900" />
+        </font>
+    </family>
+    <family>
         <font supportedAxes="wght,ital">Roboto-Regular.ttf
             <axis tag="wdth" stylevalue="100" />
         </font>
@@ -1737,5 +1796,65 @@
             NotoSerifYezidi-VF.ttf
             <axis tag="wght" stylevalue="700"/>
         </font>
+    </family>
+
+    <!-- 补充字库 (OFL-1.1): 全局 fallback, 兜底用户字体与系统字体未覆盖的字形
+         (CJK 扩展区、Archaic Cuneiform Numerals、最新 Unicode 等)。
+         无名 family 进入默认 fallback 链, 按顺序兜底 -->
+    <family>
+        <font weight="400" style="normal">PlangothicP1.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">PlangothicP2.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">PlanschriftSeal-Regular.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">MFGA.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">BraillePatterns.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">NotoSansPro.otf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">UnicodiaFunky.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">ArchaicCuneiformNumerals.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Unicode18-new.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Unicode17-new.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">SatisarSharada-Regular.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Unicode16-new.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Unknown-symbol-supplementRegular.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">NotoUnicode.otf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Tibetan-Regular.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">Private-UseTest.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">ZUno-Number.ttf</font>
+    </family>
+
+    <!-- 表情补充: 跟随系统 emoji (und-Zsye) fallback 兜底 -->
+    <family lang="und-Zsye">
+        <font weight="400" style="normal">NotoColorEmoji.ttf</font>
     </family>
 </familyset>

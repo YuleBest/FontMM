@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **补充字库**：内置 OFL-1.1 许可的 NotoSansPro / Unicode16-18 / ZUno-Number 及 Plangothic（CJK 扩展 I/J）、PlanschriftSeal（**Seal 小篆区块 11328 字符 100% 覆盖**，MIT/OFL 双许可），在 `fonts.xml` 末尾作为全局 fallback
+- **单一源字体配置**：`fonts.xml` 为唯一源，开发阶段自动生成 `fonts_base.xml` / `fonts_ule.xml` / `font_fallback.xml`
+- **Unicode 覆盖测试**：新增 `dev/check-unicode-coverage.py`，本地模拟 fallback 链统计各区块覆盖率
+
 ## v26.8.0-beta.1
 
 全新 v26 架构重构：
