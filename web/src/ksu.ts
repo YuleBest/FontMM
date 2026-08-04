@@ -68,6 +68,56 @@ async function mockExec(command: string): Promise<ExecResult> {
     return slow('name=KernelSU MetaModule\nversion=v1.0\nauthor=KernelSU');
   }
 
+  // 小米主题字体工具: 搜索/详情/下载 (模拟)
+  if (command.includes('thm.market.intl.xiaomi.com')) {
+    return slow(
+      JSON.stringify({
+        apiData: {
+          cards: [
+            {
+              items: [
+                {
+                  schema: {
+                    clicks: [
+                      { title: 'MiSans Global (模拟)', link: 'mock-font-1' },
+                      { title: 'OPPO Sans (模拟)', link: 'mock-font-2' },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+  }
+  if (command.includes('api.zhuti.intl.xiaomi.com')) {
+    return slow(
+      JSON.stringify({
+        apiData: { extraInfo: { themeDetail: { downloadUrl: 'mock/download/path' } } },
+      }),
+    );
+  }
+  // 下载: 后台启动脚本 (立即返回)
+  if (command.includes('nohup sh') && command.includes('mi-font-download.sh')) {
+    return fake('');
+  }
+  // 下载: 轮询日志文件 (模拟完整日志 + 结束标记)
+  if (command.includes('mi-download.log')) {
+    return slow(
+      [
+        '[*] 获取「MiSans Global (模拟)」下载链接...',
+        '[*] 下载: https://f17.market.xiaomi.com/issue/mock/download/path/MiSans%20Global%20(模拟).mtz',
+        '[✓] 下载完成: /storage/emulated/0/Download/xttdown/MiSans_Global_模拟_.mtz (23.3M)',
+        '[*] 解压 mtz 并提取字体...',
+        '[✓] 提取字体:',
+        '    /storage/emulated/0/Download/xttdown/extracted/MiSans_Global_模拟_/Roboto-Regular.ttf',
+        '    /storage/emulated/0/Download/xttdown/extracted/MiSans_Global_模拟_/MiSans-DemiBold.ttf',
+        '__DONE__',
+      ].join('\n'),
+    );
+  }
+
   if (command.includes('ro.product.model')) return slow('Pixel 8 Pro (模拟设备)');
   return slow(`(mock 未定义: ${command})`);
 }

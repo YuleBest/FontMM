@@ -560,6 +560,136 @@ md-dialog {
 }
 
 // ---------------- 9. 字体测试视图 ----------------
+// 工具页: 返回栏 (工具详情页)
+.view-topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+
+  .view-topbar-title {
+    font-size: var(--md-sys-typescale-title-medium-size);
+    font-weight: var(--md-sys-typescale-title-medium-weight);
+    color: var(--md-sys-color-on-surface);
+  }
+}
+
+// 工具页: 小米主题字体下载
+.tool-page {
+  .mi-search-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+}
+
+.mi-result {
+  min-height: 120px;
+
+  .mi-status {
+    padding: 24px 8px;
+    text-align: center;
+    font-size: var(--md-sys-typescale-body-medium-size);
+    color: var(--md-sys-color-on-surface-variant);
+    white-space: pre-wrap;
+    word-break: break-all;
+
+    &.mi-status-error {
+      color: var(--md-sys-color-error);
+    }
+
+    &.mi-status-done {
+      color: var(--md-sys-color-primary);
+    }
+  }
+
+  .mi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mi-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--md-shape-corner-medium);
+    background-color: var(--md-sys-color-surface-container-low);
+
+    .mi-item-pic {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+      border-radius: var(--md-shape-corner-small);
+      object-fit: cover;
+      background-color: var(--md-sys-color-surface-container-high);
+    }
+
+    .mi-item-title {
+      flex: 1;
+      min-width: 0;
+      font-size: var(--md-sys-typescale-body-medium-size);
+      color: var(--md-sys-color-on-surface);
+      word-break: break-all;
+    }
+  }
+
+  .mi-pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 16px;
+
+    .mi-page {
+      font-size: var(--md-sys-typescale-label-medium-size);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+  }
+
+  // 下载日志 (等宽字体)
+  .mi-log {
+    margin: 0;
+    padding: 12px;
+    border-radius: var(--md-shape-corner-medium);
+    background-color: var(--md-sys-color-surface-container-low);
+    font-family: 'Roboto Mono', ui-monospace, monospace;
+    font-size: var(--md-sys-typescale-body-small-size);
+    line-height: 1.6;
+    color: var(--md-sys-color-on-surface);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  // 下载进度条 (M3 风格)
+  .mi-progress {
+    padding: 24px 8px;
+
+    .mi-progress-track {
+      width: 100%;
+      height: 4px;
+      border-radius: var(--md-shape-corner-full);
+      background-color: var(--md-sys-color-surface-container-high);
+      overflow: hidden;
+    }
+
+    .mi-progress-bar {
+      height: 100%;
+      border-radius: var(--md-shape-corner-full);
+      background-color: var(--md-sys-color-primary);
+      transition: width var(--md-duration-standard) var(--md-easing-standard);
+    }
+
+    .mi-progress-text {
+      margin-top: 10px;
+      text-align: center;
+      font-size: var(--md-sys-typescale-body-small-size);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+  }
+}
 .view-test {
   gap: 16px;
 

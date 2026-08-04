@@ -16,6 +16,7 @@ import './style.scss';
 
 import { amStart, exec, enableEdgeToEdge, getSystemInfo, moduleInfo, toast } from './ksu';
 import { FontFilePicker } from './fontPicker';
+import { MiFontTool } from './tools';
 import type { FontSlot } from './types';
 import * as opentype from 'opentype.js';
 
@@ -305,8 +306,9 @@ renderSlots();
 const homeView = document.getElementById('home-view')!;
 const configView = document.getElementById('config-view')!;
 const testView = document.getElementById('test-view')!;
+const toolsView = document.getElementById('tools-view')!;
 
-const views = [homeView, configView, testView];
+const views = [homeView, configView, testView, toolsView];
 const navBar = document.getElementById('nav-bar') as any;
 // 悬浮应用按钮 (与配置页绑定, 仅配置页显示)
 const applyFab = document.getElementById('apply-btn') as HTMLElement;
@@ -482,6 +484,10 @@ void document.getElementById('donate-alipay')?.addEventListener('click', () => {
 void document.getElementById('dev-entry')?.addEventListener('click', () => {
   void amStart(DEV_PROFILE_URL);
 });
+
+// ---------------- 工具 ----------------
+const miFontTool = new MiFontTool();
+document.getElementById('mi-font-tool')?.addEventListener('click', () => miFontTool.open());
 
 // ---------------- 测试文本编辑 ----------------
 // 点击可编辑测试卡片 (简体/繁体/英文) 修改测试文本
