@@ -18,15 +18,15 @@ const FAKE_FS: Record<string, { dirs: string[]; fonts: string[]; files: string[]
   },
   '/storage/emulated/0/Download': {
     dirs: [],
-    fonts: ['HarmonyOS_Sans.ttf', 'MiSans-Bold.ttf'],
+    fonts: ['HarmonyOS_Sans.ttf', 'MiSans-Bold.ttf', 'AlibabaPuHuiTi.otf'],
     files: ['a.pdf'],
   },
   '/storage/emulated/0/Fonts': {
     dirs: [],
-    fonts: ['OPPOSans.ttf', 'SourceHanSansCN.ttf'],
+    fonts: ['OPPOSans.ttf', 'SourceHanSansCN.ttf', 'Inter-Variable.otf'],
     files: [],
   },
-  '/storage/emulated/0/Documents': { dirs: [], fonts: [], files: [] },
+  '/storage/emulated/0/Documents': { dirs: [], fonts: [], files: ['notes.txt'] },
   '/storage/emulated/0/字体': { dirs: [], fonts: ['思源黑体.ttf', '霞鹜文楷.ttf'], files: [] },
 };
 
@@ -38,16 +38,18 @@ async function mockExec(command: string): Promise<ExecResult> {
   const slowFail = (stderr: string) =>
     new Promise<ExecResult>((r) => setTimeout(() => r(fail(stderr)), 200));
 
-  // find 命令: 解析路径与类型 (d/f), 返回假目录/文件, 每行一个完整路径
+  // find 命令: 解析路径与类型 (d/f), 返回假目录/文件, 以 NUL 分隔 (与 -print0 一致)
   if (command.startsWith('find ')) {
-    const m = command.match(/^find ['"]([^'"]*)['"] -maxdepth 1 -mindepth 1 -type ([df])$/);
+    const m = command.match(
+      /^find ['"]([^'"]*)['"] -maxdepth 1 -mindepth 1 -type ([df]) ?-print0$/,
+    );
     if (!m) return slow(`(mock 未定义: ${command})`);
     const dir = m[1];
     const node = FAKE_FS[dir];
     if (!node) return slowFail(`find: ${dir}: No such file or directory`);
     const full = (name: string) => (dir === '/' ? `/${name}` : `${dir}/${name}`);
     const lines = m[2] === 'd' ? node.dirs.map(full) : [...node.fonts, ...node.files].map(full);
-    return slow(lines.join('\n'));
+    return slow(lines.join('\0'));
   }
 
   // 字体测试: 模拟 FONT 字体已放入 webroot/fonts-test, 返回可用字体列表
@@ -59,6 +61,11 @@ async function mockExec(command: string): Promise<ExecResult> {
   if (command.includes('cp -f')) return fake('');
   if (command.includes('apply.sh')) {
     return fake('[*] 安装: SysSans-Hans-Regular.ttf (模拟)\n[*] 全部完成, 重启后生效 (模拟)');
+  }
+
+  // 元模块 (KernelSU 3.0+ 需要): 模拟已安装
+  if (command.includes('metamodule')) {
+    return slow('name=KernelSU MetaModule\nversion=v1.0\nauthor=KernelSU');
   }
 
   if (command.includes('ro.product.model')) return slow('Pixel 8 Pro (模拟设备)');
@@ -125,4 +132,67 @@ export function enableEdgeToEdge(enabled: boolean): void {
   } catch {
     // 忽略
   }
+}
+
+// ---------------- 主页: 设备 / 模块信息 ----------------
+
+export interface SystemInfo {
+  /** ro.build.version.release, 如 "16.0" */
+  androidVersion: string;
+  /** ro.build.version.sdk, 如 "36" */
+  sdk: string;
+  /** ro.product.model, 如 "PHZ110" */
+  deviceModel: string;
+  /** ro.product.cpu.abi, 如 "arm64-v8a" */
+  abi: string;
+  /** FONTS/ 中实际存在的用户字体文件数 (0-4) */
+  fontCount: number;
+}
+
+// 模块 FONT 目录 (与 main.ts 的 FONTS_DIR 保持一致)
+const MODULE_FONTS_DIR = '/data/adb/modules/FontMM/FONTS';
+
+export async function getSystemInfo(): Promise<SystemInfo> {
+  if (import.meta.env.DEV) {
+    return {
+      androidVersion: '16.0',
+      sdk: '36',
+      deviceModel: 'Pixel 8 Pro (模拟设备)',
+      abi: 'arm64-v8a',
+      fontCount: 2,
+    };
+  }
+  const info: SystemInfo = { androidVersion: '', sdk: '', deviceModel: '', abi: '', fontCount: 0 };
+  try {
+    const props = [
+      'ro.build.version.release',
+      'ro.build.version.sdk',
+      'ro.product.model',
+      'ro.product.cpu.abi',
+    ];
+    const { errno, stdout } = await exec(
+      `${props.map((p) => `getprop ${p}`).join('; ')}; ls -1 '${MODULE_FONTS_DIR}'/*.ttf 2>/dev/null`,
+    );
+    if (errno === 0) {
+      const lines = stdout.split('\n');
+      [info.androidVersion, info.sdk, info.deviceModel, info.abi] = lines
+        .slice(0, 4)
+        .map((l) => l.trim());
+      // 剩余行是 FONTS/ 中实际存在的字体文件名
+      info.fontCount = lines.slice(4).filter((l) => l.trim() && l.endsWith('.ttf')).length;
+    }
+  } catch {
+    // 读取失败时保持空值, 由 UI 显示占位
+  }
+  return info;
+}
+
+// 用 am start 在 WebUI 之外打开链接/应用 (避免在 WebView 内打开)
+export async function amStart(uri: string, pkg?: string): Promise<void> {
+  const cmd = `am start -a android.intent.action.VIEW -d '${uri}'${pkg ? ` -p ${pkg}` : ''}`;
+  if (import.meta.env.DEV) {
+    console.log('[am start]', cmd);
+    return;
+  }
+  await exec(cmd);
 }

@@ -5,9 +5,20 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html,
+body {
+  // vh 兜底 + dvh 增强 (dvh 不支持的旧 WebView 回退 vh)
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   padding: 0;
+  // 视口 pager: 顶栏 / 轨道 / 底栏垂直排布, 页面高度固定由布局决定
+  display: flex;
+  flex-direction: column;
   background-color: var(--md-sys-color-background);
   color: var(--md-sys-color-on-surface);
   font-family:
@@ -19,7 +30,7 @@ body {
 
 // ---------------- 1. Top App Bar ----------------
 .top-app-bar {
-  // 随页面滚动 (非 fixed)
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   height: calc(64px + var(--top-inset, 0px));
@@ -28,12 +39,23 @@ body {
   background-color: transparent;
 
   .top-app-bar__title {
+    // 默认隐藏: 页面标题在内容区, 滚动移出屏幕后固定在顶栏左侧
+    opacity: 0;
+    transform: translateY(3px);
+    transition:
+      opacity var(--md-duration-standard) var(--md-easing-standard),
+      transform var(--md-duration-standard) var(--md-easing-standard);
     font-size: var(--md-sys-typescale-title-large-size);
     font-weight: var(--md-sys-typescale-title-large-weight);
     line-height: var(--md-sys-typescale-title-large-line-height);
     letter-spacing: var(--md-sys-typescale-title-large-tracking);
     color: var(--md-sys-color-on-surface);
+    pointer-events: none;
   }
+
+  // 标题滚动到顶栏后: 顶栏出现标题与同底色背景 (遮住下方滚过的内容)
+  transition: background-color var(--md-duration-standard) var(--md-easing-standard);
+  background-color: transparent;
 
   .top-app-bar__actions {
     display: flex;
@@ -43,71 +65,78 @@ body {
   }
 }
 
-// 关于页隐藏顶栏 (自身带返回栏), 内容区相应缩减顶部留白
-body.no-top-bar {
+// 标题移出屏幕后: 顶栏显示标题与背景
+body.title-scrolled {
   .top-app-bar {
-    display: none;
+    background-color: var(--md-sys-color-background);
   }
 
-  .view-about {
-    padding-top: calc(var(--top-inset, 0px) + 16px);
+  .top-app-bar__title {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-// ---------------- 2. 视图容器 ----------------
+// ---------------- 2. 视口 pager ----------------
+// 三页横排轨道: 轨道高度由布局固定 (视口 - 顶栏), 与页面内容多少无关,
+// 不存在内容少的页面底部出现空白的问题
+.view-track {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  // 不在此裁剪: transform + overflow:hidden 组合在 Chromium 存在命中测试 bug
+  // (平移后子页内容不绘制)。横向越界由 body 的 overflow:hidden 统一裁剪。
+  transition: transform var(--md-duration-emphasized) var(--md-easing-emphasized);
+}
+
+// 每个视图: 占满轨道一屏宽度, 内部独立滚动
 .view {
-  display: none;
-
-  &.active {
-    display: block;
-  }
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  // 每页独立合成层, 避免轨道整体合成时子滚动容器渲染异常
+  will-change: transform;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  // 大屏 (>600px) 内容居中, 小屏保持全宽
+  padding: 16px max(16px, calc((100% - 600px) / 2 + 16px)) calc(var(--bottom-inset, 0px) + 96px)
+    max(16px, calc((100% - 600px) / 2 + 16px));
 }
 
-.view-home,
-.view-test,
-.view-about {
-  max-width: 600px;
-  margin: 0 auto;
-  // 顶栏已在文档流中占位, 顶部仅留少量呼吸间距;
-  // 底部预留导航栏 + 吸底 CTA, 确保最后一张卡片能完整滑出不被遮挡
-  padding: 16px 16px calc(var(--bottom-inset, 0px) + 176px) 16px;
+// 配置页有悬浮应用按钮, 底部需额外避让 FAB
+.view-config {
+  padding-bottom: calc(var(--bottom-inset, 0px) + 176px);
 }
 
 #slots {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  // 显式 stretch: 某些环境下 flex 的 align-items:normal 不会拉伸子项, 导致卡片宽度收缩成梯级
+  align-items: stretch;
 }
 
-// ---------------- 3. 首页槽位卡片 ----------------
-md-elevated-card.slot-card {
+// ---------------- 3. 配置页槽位卡片 ----------------
+// M3 filled card: 无阴影无边框 (设置项列表层级), 选中态用 tonal 容器色
+md-filled-card.slot-card {
   display: block;
   padding: 16px;
   overflow: hidden;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  transition:
-    border-color var(--md-duration-standard) var(--md-easing-standard),
-    border-width var(--md-duration-standard) var(--md-easing-standard);
-  --md-elevated-card-container-color: var(--md-sys-color-surface-container-low);
-  --md-elevated-card-container-shape: var(--md-shape-corner-medium);
-  --md-elevated-card-container-elevation: 1;
+  --md-filled-card-container-color: var(--md-sys-color-surface-container-low);
+  --md-filled-card-container-shape: var(--md-shape-corner-large);
 
-  // 已选择状态: 仅通过边框高亮区分 (不再使用 Badge / 图标)
+  // 已选择状态: tonal 高亮 (primary-container), M3 标准选中反馈
   &.selected {
-    border-color: var(--md-sys-color-primary);
-    border-width: 1.5px;
+    --md-filled-card-container-color: var(--md-sys-color-primary-container);
   }
 
-  // 中文简体为必选: 边框恒用强调色 (tertiary)
-  &.slot-hans {
-    border-color: var(--md-sys-color-tertiary);
-    border-width: 1.5px;
-  }
+  // 整卡可点击选择
+  cursor: pointer;
 
   .slot-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 8px;
     margin-bottom: 12px;
 
@@ -125,14 +154,11 @@ md-elevated-card.slot-card {
       color: var(--md-sys-color-on-surface);
     }
 
-    // 选择/更换按钮位于卡片右上角
-    .slot-actions {
+    // 右侧导航箭头
+    .slot-arrow {
       flex-shrink: 0;
-
-      md-outlined-button {
-        --md-outlined-button-container-shape: var(--md-shape-corner-small);
-        height: 40px;
-      }
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 24px;
     }
   }
 
@@ -174,10 +200,29 @@ md-elevated-card.slot-card {
         }
       }
 
+      // 徽标组: 每个信息 (大小 / 扩展名) 一个独立胶囊徽标
       .slot-meta {
-        margin-top: 2px;
-        font-size: var(--md-sys-typescale-body-small-size);
-        color: var(--md-sys-color-outline);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 4px;
+
+        .slot-meta-badge {
+          display: inline-block;
+          padding: 2px 10px;
+          border-radius: var(--md-shape-corner-full);
+          // highest 避免与选中卡片背景 (high) 同色融合
+          background-color: var(--md-sys-color-surface-container-highest);
+          font-size: var(--md-sys-typescale-label-small-size);
+          font-weight: var(--md-sys-typescale-label-small-weight);
+          color: var(--md-sys-color-on-surface-variant);
+
+          // 可变字体徽标: 实色主题色, 与选中卡片背景 (primary-container) 区分
+          &.slot-meta-badge--variable {
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+          }
+        }
       }
     }
   }
@@ -255,115 +300,262 @@ md-dialog {
   --md-dialog-container-shape: var(--md-shape-corner-extra-large);
 }
 
-// ---------------- 7. 通用信息卡片 (关于 / 测试共用) ----------------
-.about-card,
+// ---------------- 7. 通用信息卡片 (测试页) ----------------
 .test-card {
   display: block;
   padding: 20px;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  // 无阴影 (elevation 0)
+  --md-elevated-card-container-elevation: 0;
   --md-elevated-card-container-color: var(--md-sys-color-surface-container-low);
-  --md-elevated-card-container-shape: var(--md-shape-corner-medium);
+  --md-elevated-card-container-shape: var(--md-shape-corner-large);
 }
 
-// ---------------- 8. 关于视图 ----------------
-.view-topbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+// ---------------- 8. 主页视图 ----------------
+// 模块标题: 大字号 + 下方留白 (呼吸感)
+.home-title {
+  margin: 4px 4px 28px 4px;
+  font-size: var(--md-sys-typescale-title-large-size);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--md-sys-color-on-surface);
+}
 
-  .view-topbar-title {
+.home-card {
+  display: block;
+  margin-bottom: 16px;
+  overflow: hidden;
+  --md-elevated-card-container-color: var(--md-sys-color-surface-container-low);
+  --md-elevated-card-container-shape: var(--md-shape-corner-large);
+  --md-elevated-card-container-elevation: 1;
+}
+
+// 模块状态卡: 左对钩圆形图标 + 居左标题/副标题, 主题色容器背景
+// (md-elevated-card 内部 :host 默认 flex-direction: column, 必须显式覆盖为 row)
+.home-status-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  // 与下方入口卡之间留出更大间距
+  margin-bottom: 24px;
+  --md-elevated-card-container-color: var(--md-sys-color-primary-container);
+
+  // 40px 透明占位容器: 与入口卡图标容器同宽, 保证图标/文本横向对齐
+  .home-status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+
+    md-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: var(--md-shape-corner-full);
+      background-color: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      font-size: 20px;
+    }
+  }
+
+  .home-status-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .home-status-title {
+    font-size: var(--md-sys-typescale-title-medium-size);
+    font-weight: var(--md-sys-typescale-title-medium-weight);
+    line-height: var(--md-sys-typescale-title-medium-line-height);
+    color: var(--md-sys-color-on-primary-container);
+  }
+
+  .home-status-sub {
+    font-size: var(--md-sys-typescale-body-small-size);
+    color: var(--md-sys-color-on-primary-container);
+    opacity: 0.85;
+  }
+}
+
+// 入口卡 (请我喝咖啡 / 开发者)
+.home-entry-card {
+  // 捐献卡与开发者卡之间间距收紧
+  &#donate-card {
+    margin-bottom: 8px;
+  }
+
+  .home-entry-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    cursor: pointer;
+  }
+
+  .home-entry-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    color: var(--md-sys-color-primary);
+
+    md-icon {
+      font-size: 24px;
+    }
+  }
+
+  .home-entry-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .home-entry-title {
     font-size: var(--md-sys-typescale-title-medium-size);
     font-weight: var(--md-sys-typescale-title-medium-weight);
     color: var(--md-sys-color-on-surface);
   }
-}
 
-.view-about {
-  gap: 16px;
-
-  &.active {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .about-logo {
-    font-size: var(--md-sys-typescale-title-large-size);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--md-sys-color-primary);
-  }
-
-  .about-desc {
-    margin-top: 4px;
-    font-size: var(--md-sys-typescale-body-medium-size);
+  .home-entry-sub {
+    margin-top: 2px;
+    font-size: var(--md-sys-typescale-body-small-size);
     color: var(--md-sys-color-on-surface-variant);
   }
 
-  .about-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 16px;
+  .home-entry-arrow {
+    flex-shrink: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    transition: transform var(--md-duration-standard) var(--md-easing-standard);
 
-    .about-row {
+    &.expanded {
+      transform: rotate(180deg);
+    }
+  }
+
+  // 捐献展开子列表
+  .home-entry-expand {
+    animation: home-expand var(--md-duration-emphasized) var(--md-easing-emphasized-decelerate);
+
+    // 捐献说明文字 (缩进与图标/文本对齐)
+    .home-donate-note {
+      padding: 0 20px 10px calc(20px + 40px + 16px);
+      font-size: var(--md-sys-typescale-body-small-size);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .home-donate-item {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 12px 20px 18px calc(20px + 40px + 16px);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-family: inherit;
 
-      .about-row-label {
-        font-size: var(--md-sys-typescale-body-small-size);
+      .home-donate-logo {
+        font-size: var(--md-sys-typescale-label-large-size);
+        font-weight: var(--md-sys-typescale-label-large-weight);
+        color: var(--md-sys-color-primary);
+      }
+
+      .home-donate-name {
+        font-size: var(--md-sys-typescale-body-medium-size);
         color: var(--md-sys-color-on-surface-variant);
       }
-
-      .about-row-value {
-        font-size: var(--md-sys-typescale-body-medium-size);
-        font-weight: 600;
-        color: var(--md-sys-color-on-surface);
-      }
     }
   }
+}
 
-  .about-section-title {
+@keyframes home-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// 设备信息卡
+.home-info-card {
+  padding: 20px;
+
+  .home-info-title {
     margin-bottom: 8px;
-    font-size: var(--md-sys-typescale-title-small-size);
-    font-weight: var(--md-sys-typescale-title-small-weight);
-    color: var(--md-sys-color-primary);
-  }
-
-  .about-section-text {
-    margin: 0 0 12px 0;
-    font-size: var(--md-sys-typescale-body-small-size);
-    line-height: 1.6;
-    color: var(--md-sys-color-on-surface-variant);
-  }
-
-  .about-link {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border-radius: var(--md-shape-corner-medium);
-    background: var(--md-sys-color-surface-container-low);
-    font-size: var(--md-sys-typescale-body-medium-size);
+    font-size: var(--md-sys-typescale-title-medium-size);
+    font-weight: var(--md-sys-typescale-title-medium-weight);
     color: var(--md-sys-color-on-surface);
+  }
+
+  // 双行信息块: 上行小字标题(灰), 下行大字信息
+  .home-info-row {
+    padding: 10px 0;
+
+    .home-info-label {
+      font-size: var(--md-sys-typescale-label-medium-size);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .home-info-value {
+      margin-top: 2px;
+      font-size: var(--md-sys-typescale-title-medium-size);
+      font-weight: var(--md-sys-typescale-title-medium-weight);
+      line-height: var(--md-sys-typescale-title-medium-line-height);
+      color: var(--md-sys-color-on-surface);
+      word-break: break-all;
+    }
+  }
+}
+
+// 测试状态提示 (info 卡片)
+.test-status-card {
+  display: flex;
+  flex-direction: row; // 覆盖 md-elevated-card 内部默认 column
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  --md-elevated-card-container-color: var(--md-sys-color-secondary-container);
+  --md-elevated-card-container-shape: var(--md-shape-corner-large);
+
+  .test-status-icon {
+    display: flex;
+    flex-shrink: 0;
+    color: var(--md-sys-color-on-secondary-container);
 
     md-icon {
-      color: var(--md-sys-color-primary);
-    }
-
-    a {
-      margin-left: auto;
-      color: var(--md-sys-color-primary);
-      text-decoration: none;
-      font-weight: 600;
+      font-size: 20px;
     }
   }
 
-  .about-footer {
-    margin-top: 4px;
-    text-align: center;
-    font-size: var(--md-sys-typescale-label-small-size);
-    color: var(--md-sys-color-outline);
+  .test-status-text {
+    font-size: var(--md-sys-typescale-body-medium-size);
+    color: var(--md-sys-color-on-secondary-container);
+  }
+}
+
+// 可编辑测试文本: 虚线框 + 点击提示 (点击卡片打开编辑对话框)
+.test-card-editable {
+  cursor: pointer;
+
+  .test-sample,
+  .test-var-preview {
+    outline: 1px dashed var(--md-sys-color-outline-variant);
+    outline-offset: 4px;
+    border-radius: var(--md-shape-corner-small);
+    padding: 8px;
   }
 }
 
@@ -423,11 +615,6 @@ md-dialog {
     display: flex;
     align-items: center;
     padding: 6px 0;
-    border-bottom: 1px dashed var(--md-sys-color-outline-variant);
-
-    &:last-child {
-      border-bottom: none;
-    }
 
     .test-w-text {
       font-size: var(--md-sys-typescale-body-medium-size);
@@ -519,9 +706,10 @@ md-dialog {
           font-size: var(--md-sys-typescale-title-medium-size);
           font-weight: 700;
           color: var(--md-sys-color-on-surface);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          // 长路径换行完整显示, 不截断成省略号
+          white-space: normal;
+          word-break: break-all;
+          line-height: 1.3;
         }
       }
     }

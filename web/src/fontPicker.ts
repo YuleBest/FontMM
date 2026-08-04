@@ -99,20 +99,20 @@ export class FontFilePicker {
     }
   }
 
-  // 用 find 列出目录与文件: 每行一个完整路径, 目录/文件分两次查询
-  // (兼容 busybox 与 GNU find, 不解析 ls 的列输出, 路径含空格也安全)
+  // 用 find 列出目录与文件: -print0 以 NUL 分隔路径, 路径含空格/换行也安全
+  // (兼容 busybox 与 GNU find, 不解析 ls 的列输出)
   private async readDir(path: string): Promise<{ items: FileItem[]; failed: boolean }> {
     const [dirRes, fileRes] = await Promise.all([
-      exec(`find "${path}" -maxdepth 1 -mindepth 1 -type d`),
-      exec(`find "${path}" -maxdepth 1 -mindepth 1 -type f`),
+      exec(`find "${path}" -maxdepth 1 -mindepth 1 -type d -print0`),
+      exec(`find "${path}" -maxdepth 1 -mindepth 1 -type f -print0`),
     ]);
 
     if (dirRes.errno !== 0 || fileRes.errno !== 0) {
       return { items: [], failed: true };
     }
 
-    const dirs = this.splitLines(dirRes.stdout).map((p) => this.basename(p));
-    const files = this.splitLines(fileRes.stdout)
+    const dirs = this.splitNul(dirRes.stdout).map((p) => this.basename(p));
+    const files = this.splitNul(fileRes.stdout)
       .map((p) => this.basename(p))
       // 仅显示扩展名为 .ttf 的文件
       .filter((name) => name.toLowerCase().endsWith('.ttf'));
@@ -129,11 +129,9 @@ export class FontFilePicker {
     return { items, failed: false };
   }
 
-  private splitLines(output: string): string[] {
-    return output
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
+  // 按 NUL 分隔 find -print0 的输出 (路径内的换行/空格不受影响)
+  private splitNul(output: string): string[] {
+    return output.split('\0').filter(Boolean);
   }
 
   private basename(path: string): string {
