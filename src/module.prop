@@ -1,7 +1,7 @@
 id=FontMM
 name=FontMM
-version=26.8.0-beta.1(260800001)
-versionCode=26080001
+version=26.8.0-beta.2(260800002)
+versionCode=26080002
 author=Yule
 description=ColorOS 16 字体模块模板
 updateJson=https://raw.githubusercontent.com/YuleBest/FontMM/main/update.json
