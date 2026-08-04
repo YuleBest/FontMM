@@ -64,4 +64,13 @@ else
     rm -f "$SYS_FONT_DIR/FontMM-Mono.ttf"
 fi
 
+echo "[*] 处理 Emoji 字体..."
+if [ -f "$FONTS_DIR/emoji.ttf" ]; then
+    # 复制为模块独立文件 FontMM-Emoji.ttf (und-Zsye family 优先引用, 不覆盖补充字库 NotoColorEmoji)
+    install_from "$FONTS_DIR/emoji.ttf" 'FontMM-Emoji.ttf'
+else
+    echo "[-] 未设置 Emoji 字体, 使用系统默认"
+    rm -f "$SYS_FONT_DIR/FontMM-Emoji.ttf"
+fi
+
 echo "[*] 全部完成, 重启后生效"

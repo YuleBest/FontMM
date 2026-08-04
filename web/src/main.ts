@@ -25,7 +25,7 @@ enableEdgeToEdge(true);
 
 const FONTS_DIR = '/data/adb/modules/FontMM/FONTS';
 
-const slots: Record<'hans' | 'hant' | 'en' | 'mono', FontSlot> = {
+const slots: Record<'hans' | 'hant' | 'en' | 'mono' | 'emoji', FontSlot> = {
   hans: {
     key: 'hans',
     title: '中文简体',
@@ -47,6 +47,12 @@ const slots: Record<'hans' | 'hant' | 'en' | 'mono', FontSlot> = {
   mono: {
     key: 'mono',
     title: '等宽字体',
+    path: null,
+    fileName: '',
+  },
+  emoji: {
+    key: 'emoji',
+    title: 'Emoji 表情',
     path: null,
     fileName: '',
   },
@@ -99,6 +105,7 @@ async function readFontInfo(
       'hant.ttf': { name: '源樣明體', size: '21.2 MB', variable: false },
       'en.ttf': { name: 'Inter Variable', size: '0.8 MB', variable: true },
       'mono.ttf': { name: 'JetBrains Mono', size: '1.2 MB', variable: false },
+      'emoji.ttf': { name: 'Noto Color Emoji', size: '9.8 MB', variable: false },
     };
     const mock = MOCK_FONT_INFO[file];
     return mock ? { name: mock.name, sizeText: mock.size, isVariable: mock.variable } : {};
@@ -135,7 +142,7 @@ async function refreshSlotInfo(slot: FontSlot) {
 // 打开 WebUI 时: 复制 FONT/ 到 fonts-test, 读取已有字体的名称/大小填充卡片
 async function loadExistingFonts() {
   const available = await ensureFontsCopy();
-  for (const key of ['hans', 'hant', 'en', 'mono'] as const) {
+  for (const key of ['hans', 'hant', 'en', 'mono', 'emoji'] as const) {
     const file = `${key}.ttf`;
     if (!available.includes(file)) continue;
     const slot = slots[key];
@@ -154,6 +161,7 @@ function slotPlaceholder(slot: FontSlot): string {
   if (slot.key === 'hans') return '未选择字体文件';
   if (slots.hans.path) {
     if (slot.key === 'mono') return '未选择，保持系统等宽字体';
+    if (slot.key === 'emoji') return '未选择，保持系统 Emoji';
     return `默认使用：${slots.hans.fileName}`;
   }
   return '未选择字体文件';
@@ -262,6 +270,14 @@ async function apply() {
       }
     } else {
       await exec(`rm -f '${FONTS_DIR}/mono.ttf'`);
+    }
+
+    if (slots.emoji.path) {
+      if (slots.emoji.path !== `${FONTS_DIR}/emoji.ttf`) {
+        await copyFont(slots.emoji.path, `${FONTS_DIR}/emoji.ttf`);
+      }
+    } else {
+      await exec(`rm -f '${FONTS_DIR}/emoji.ttf'`);
     }
 
     const { errno, stdout, stderr } = await exec('sh /data/adb/modules/FontMM/apply.sh');

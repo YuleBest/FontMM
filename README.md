@@ -9,7 +9,7 @@ FontMM 是一个用于在 ColorOS 设备上一键更换系统字体的 **Magisk 
 ## 特性
 
 - **内置 WebUI**：Material Design 3 风格的管理界面，在 KernelSU 管理器（或支持 WebUI 的 Root 管理器）中直接打开
-- **三槽位字体**：中文简体 / 中文繁体 / 英文与数字分别独立设置，另支持等宽字体
+- **五槽位字体**：中文简体 / 中文繁体 / 英文与数字 / 等宽 / Emoji 分别独立设置
 - **智能回退**：繁体、英文未设置时自动回退到简体
 - **可视化文件选择器**：浏览设备目录、仅显示 `.ttf` 文件
 - **安装自检**：刷入时自动校验 ColorOS 版本、KernelSU 元模块、FontLoader 版本
@@ -41,7 +41,7 @@ FontMM 是一个用于在 ColorOS 设备上一键更换系统字体的 **Magisk 
 选择建议：
 
 - **首次安装**：用 `_preplace` 版，开箱即用；如果用 `_template` 版，刷入后需先在 WebUI 设置简体字体，否则 `apply.sh` 会因缺少 `hans.ttf` 报错。
-- **更新已安装的模块**：用 `_template` 版——更新模式会从旧模块的 `FONTS/` 目录继承 `hans.ttf` / `hant.ttf` / `en.ttf` / `mono.ttf`，无需重新设置字体，也不浪费下载预置字体。
+- **更新已安装的模块**：用 `_template` 版——更新模式会从旧模块的 `FONTS/` 目录继承 `hans.ttf` / `hant.ttf` / `en.ttf` / `mono.ttf` / `emoji.ttf`，无需重新设置字体，也不浪费下载预置字体。
 - 在线更新（KernelSU 管理器检测到新版本时）走 `update.json`，其 `zipUrl` 指向 `_template` 版，行为同上。
 
 ### 安装步骤
@@ -61,6 +61,7 @@ FontMM 是一个用于在 ColorOS 设备上一键更换系统字体的 **Magisk 
    - **中文繁体**——可选，未选择时自动使用简体
    - **英文 & 数字**——可选，未选择时自动使用简体
    - **等宽字体**——可选，未选择时不覆盖系统等宽字体
+   - **Emoji 表情**——可选，未选择时使用系统默认 Emoji
 3. 点击「应用字体」，弹窗展示完整应用日志
 4. **重启设备**后生效
 
@@ -71,21 +72,23 @@ FontMM 是一个用于在 ColorOS 设备上一键更换系统字体的 **Magisk 
    - `hant.ttf`——中文繁体（可选）
    - `en.ttf`——英文与数字（可选）
    - `mono.ttf`——等宽字体（可选）
+   - `emoji.ttf`——Emoji 表情（可选）
 2. 在 Root 管理器中点击本模块的「执行」（Action），或执行 `sh /data/adb/modules/FontMM/apply.sh`
 3. 重启设备
 
 ## 字体映射
 
-模块把 4 个用户字体槽位映射到 ColorOS 的系统字体文件：
+模块把 5 个用户字体槽位映射到 ColorOS 的系统字体文件：
 
-| 槽位        | 用户文件         | 覆盖的系统字体文件                                                                                                                 |
-| ----------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 中文简体    | `FONTS/hans.ttf` | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`、`SysFont-Regular.ttf` |
-| 中文繁体    | `FONTS/hant.ttf` | `SysSans-Hant-Regular.ttf`、`SysFont-Hant-Regular.ttf`                                                                             |
-| 英文 & 数字 | `FONTS/en.ttf`   | `SysSans-En-Regular.ttf`                                                                                                           |
-| 等宽字体    | `FONTS/mono.ttf` | `FontMM-Mono.ttf`（monospace 家族优先引用；未设置时不存在，自动使用系统 `DroidSansMono`）                                          |
+| 槽位        | 用户文件          | 覆盖的系统字体文件                                                                                                                 |
+| ----------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 中文简体    | `FONTS/hans.ttf`  | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`、`SysFont-Regular.ttf` |
+| 中文繁体    | `FONTS/hant.ttf`  | `SysSans-Hant-Regular.ttf`、`SysFont-Hant-Regular.ttf`                                                                             |
+| 英文 & 数字 | `FONTS/en.ttf`    | `SysSans-En-Regular.ttf`                                                                                                           |
+| 等宽字体    | `FONTS/mono.ttf`  | `FontMM-Mono.ttf`（monospace 家族优先引用；未设置时不存在，自动使用系统 `DroidSansMono`）                                          |
+| Emoji 表情  | `FONTS/emoji.ttf` | `FontMM-Emoji.ttf`（und-Zsye 家族优先引用；未设置时不存在，自动使用系统默认 Emoji）                                                |
 
-**回退规则**：`hant.ttf` / `en.ttf` 缺失时对应槽位自动使用 `hans.ttf`；`hans.ttf` 缺失时 `apply.sh` 直接报错退出（WebUI 也会禁用「应用」按钮）。`mono.ttf` 未设置时**不覆盖**系统等宽字体（`FontMM-Mono.ttf` 不存在，monospace 家族自动回退系统 `DroidSansMono`）。
+**回退规则**：`hant.ttf` / `en.ttf` 缺失时对应槽位自动使用 `hans.ttf`；`hans.ttf` 缺失时 `apply.sh` 直接报错退出（WebUI 也会禁用「应用」按钮）。`mono.ttf` 未设置时**不覆盖**系统等宽字体（`FontMM-Mono.ttf` 不存在，monospace 家族自动回退系统 `DroidSansMono`）。`emoji.ttf` 未设置时**不覆盖**系统 Emoji（`FontMM-Emoji.ttf` 不存在，und-Zsye 家族自动回退系统默认 `NotoColorEmoji`）。
 
 > 注意：等宽字体若不含中文字形，等宽区域的中文会按系统机制回退到中文字体（属正常 fallback）。如需等宽中文，请使用含中文字形的等宽字体（如 Sarasa、Maple Mono 等）。
 
@@ -247,7 +250,7 @@ A：KernelSU ≥ 3.0.0 需要先安装元模块（`/data/adb/metamodule/module.p
 
 **Q：更新模块会丢失我设置好的字体吗？**
 
-A：不会。`customize.sh` 检测到已安装的 FontMM 时会进入更新模式，从旧模块的 `FONTS/` 目录继承 `hans.ttf` / `hant.ttf` / `en.ttf` / `mono.ttf`。
+A：不会。`customize.sh` 检测到已安装的 FontMM 时会进入更新模式，从旧模块的 `FONTS/` 目录继承 `hans.ttf` / `hant.ttf` / `en.ttf` / `mono.ttf` / `emoji.ttf`。
 
 **Q：`system/fonts/` 里的字体文件为什么是 0 字节？**
 

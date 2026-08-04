@@ -1,5 +1,5 @@
 export interface FontSlot {
-  key: 'hans' | 'hant' | 'en' | 'mono';
+  key: 'hans' | 'hant' | 'en' | 'mono' | 'emoji';
   title: string;
   path: string | null;
   fileName: string;

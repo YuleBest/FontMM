@@ -54,7 +54,7 @@ async function mockExec(command: string): Promise<ExecResult> {
 
   // 字体测试: 模拟 FONT 字体已放入 webroot/fonts-test, 返回可用字体列表
   if (command.includes('fonts-test')) {
-    return slow('hans.ttf\nhant.ttf\nen.ttf\nmono.ttf');
+    return slow('hans.ttf\nhant.ttf\nen.ttf\nmono.ttf\nemoji.ttf');
   }
 
   if (command.includes('rm -f')) return fake('');
