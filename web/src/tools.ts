@@ -1,6 +1,7 @@
 import '@material/web/button/filled-button.js';
 import { exec } from './ksu';
 import { FontFilePicker } from './fontPicker';
+import { renderPreview, type PreviewData } from './previewRenderer';
 
 // ---------------- 工具框架 ----------------
 // 每个工具是一个独立页面: 注册 ToolDef 后自动出现在工具列表, 点击进入其页面。
@@ -313,6 +314,7 @@ class FontEditorPage {
   private infoCard!: HTMLElement;
   private editPanel!: HTMLElement;
   private previewEl!: HTMLElement;
+  private previewCanvas!: HTMLCanvasElement;
   private openBtn!: HTMLButtonElement & { disabled: boolean };
   private exportBtn!: HTMLButtonElement & { disabled: boolean };
   private openProgress!: any;
@@ -331,7 +333,6 @@ class FontEditorPage {
   private loading = false;
 
   private originalBytes: Uint8Array | null = null;
-  private lastEditedBytes: Uint8Array | null = null;
   private fileName = '';
   private hasNameChanges = false;
   private picker: FontFilePicker | null = null;
@@ -345,6 +346,7 @@ class FontEditorPage {
     this.infoCard = page.querySelector('#ft-info')!;
     this.editPanel = page.querySelector('#ft-edit')!;
     this.previewEl = page.querySelector('#ft-preview')!;
+    this.previewCanvas = page.querySelector('#ft-preview-canvas')!;
     this.openBtn = page.querySelector('#ft-open-btn') as any;
     this.exportBtn = page.querySelector('#ft-export-btn') as any;
     this.openProgress = page.querySelector('#ft-open-progress') as any;
@@ -362,7 +364,7 @@ class FontEditorPage {
       (page.querySelector('#ft-export-done') as any).open = false;
     });
     // 预览文本自定义: 点击预览区 -> 对话框
-    const previewBox = page.querySelector('#ft-preview-box') as HTMLElement | null;
+    const previewBox = page.querySelector('.ft-preview') as HTMLElement | null;
     const previewInput = page.querySelector('#ft-preview-input') as any;
     const previewDialog = page.querySelector('#ft-preview-dialog') as any;
     previewBox?.addEventListener('click', () => {
@@ -375,7 +377,7 @@ class FontEditorPage {
     page.querySelector('#ft-preview-save')?.addEventListener('click', () => {
       if (previewDialog) previewDialog.open = false;
       this.previewText = previewInput.value ?? '';
-      this.previewEl.textContent = this.previewText;
+      void this.applyEdit(); // 重新提取新字符轮廓并渲染
     });
     // 展开/收起更多 name 字段
     const moreBtn = page.querySelector('#ft-names-more') as HTMLElement | null;
@@ -561,7 +563,7 @@ class FontEditorPage {
     }
   }
 
-  // 执行编辑 (Worker 内, 防抖) 并刷新预览
+  // 执行预览 (Worker 提取轮廓, Canvas 渲染) — 不生成字体文件, 大字体也毫秒级
   private async applyEdit(): Promise<void> {
     if (!this.pyReady || !this.originalBytes) return;
     const scale = Number(this.scaleSlider?.value ?? 100) / 100;
@@ -571,55 +573,74 @@ class FontEditorPage {
     const lineSpacing = Number(this.llSlider?.value ?? 0);
     this.previewEl.classList.add('ft-preview-busy');
     try {
-      const result = await this.call('edit', {
+      const result = await this.call('preview', {
+        dataKey: this.fileName || 'font',
         data: this.originalBytes,
+        text: this.previewText,
         scale,
         dx,
         dy,
         letterSpacing,
         lineSpacing,
       });
-      this.lastEditedBytes = result.data;
-      await this.showPreview(result.data);
+      if (!result.glyphs) throw new Error(result.error ?? '预览失败');
+      this.renderCanvas(result);
       this.exportBtn.disabled = false;
     } catch (e) {
+      this.previewCanvas.hidden = true;
+      this.previewEl.hidden = false;
       this.previewEl.textContent = `编辑失败: ${(e as Error).message}`;
     } finally {
       this.previewEl.classList.remove('ft-preview-busy');
     }
   }
 
-  // 用编辑后的字体字节加载 FontFace 预览 (主线程, 快)
-  private async showPreview(bytes: Uint8Array): Promise<void> {
-    try {
-      const buf = bytes.buffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength,
-      ) as ArrayBuffer;
-      const face = new FontFace('fontmm-edit-preview', buf);
-      await face.load();
-      document.fonts.add(face);
-      this.previewEl.style.fontFamily = '"fontmm-edit-preview"';
-      this.previewEl.textContent = this.previewText;
-    } catch {
-      this.previewEl.textContent = '预览失败 (字体可能不含预览所需字形)';
-    }
+  // Canvas 渲染预览 (主题色填充)
+  private renderCanvas(data: PreviewData): void {
+    const color =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue('--md-sys-color-on-surface')
+        .trim() || '#1c1b1f';
+    renderPreview(this.previewCanvas, data, this.previewText, {
+      fontSize: 36,
+      color,
+    });
+    this.previewCanvas.hidden = false;
+    this.previewEl.hidden = true;
   }
 
   // 导出: 字形编辑结果 (若有 name 修改则链式合并) -> base64 分块写盘
   private async exportFont(): Promise<void> {
-    if (!this.originalBytes || !this.lastEditedBytes) return;
+    if (!this.originalBytes) return;
     this.exportBtn.disabled = true;
-    this.statusEl.textContent = '正在导出 (分块写入, 请稍候)...';
+    this.statusEl.textContent = '正在全量编辑字形（大字体可能需要 1-3 分钟）...';
     this.exportProgress.value = 0;
     this.exportProgress.hidden = false;
     try {
-      let finalBytes = this.lastEditedBytes;
+      // 全量编辑 (非预览模式): 所有字形变换
+      const scale = Number(this.scaleSlider?.value ?? 100) / 100;
+      const dx = Number(this.dxSlider?.value ?? 0);
+      const dy = Number(this.dySlider?.value ?? 0);
+      const letterSpacing = Number(this.lsSlider?.value ?? 0);
+      const lineSpacing = Number(this.llSlider?.value ?? 0);
+      const editResult = await this.call('edit', {
+        dataKey: this.fileName || 'font',
+        data: this.originalBytes,
+        scale,
+        dx,
+        dy,
+        letterSpacing,
+        lineSpacing,
+        // 不传 previewChars: 全量编辑
+      });
+      let finalBytes = editResult.data;
       if (this.hasNameChanges) {
+        this.statusEl.textContent = '正在写入字体信息...';
         const names = this.collectNames();
         const r = await this.call('updateNames', { data: finalBytes, names });
         finalBytes = r.data;
       }
+      this.statusEl.textContent = '正在导出 (分块写入, 请稍候)...';
       const b64 = bytesToBase64(finalBytes);
       const base = this.fileName.replace(/\.[^.]+$/, '') || 'font';
       const outName = `edited-${base}.ttf`;
@@ -627,7 +648,7 @@ class FontEditorPage {
       const tmp = `${WEBROOT_DIR}/work/export.tmp`;
 
       await exec(`rm -f '${tmp}' && mkdir -p '${outDir}'`);
-      const CHUNK = 30000; // base64 字符, 约 22KB 二进制
+      const CHUNK = 60000; // base64 字符, 约 45KB 二进制
       const total = Math.ceil(b64.length / CHUNK);
       for (let i = 0; i < b64.length; i += CHUNK) {
         const part = b64.slice(i, i + CHUNK);
@@ -730,12 +751,13 @@ export const FontEditorToolDef: ToolDef = {
         <md-slider id="ft-ll" min="-50" max="200" value="0" step="1"></md-slider>
       </div>
 
-      <div class="ft-preview" id="ft-preview-box">
+      <div class="ft-preview">
         <div class="ft-preview-label">
           实时预览（点击可自定义文本）
           <md-icon class="ft-preview-edit">edit</md-icon>
         </div>
-        <div class="ft-preview-text" id="ft-preview"></div>
+        <canvas id="ft-preview-canvas" class="ft-preview-canvas"></canvas>
+        <div class="ft-preview-text" id="ft-preview" hidden></div>
       </div>
 
       <md-filled-button id="ft-export-btn" class="ft-export-btn" disabled>导出字体</md-filled-button>
