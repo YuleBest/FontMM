@@ -1,5 +1,13 @@
 # Changelog
 
+## v26.8.0-beta.3
+
+- **新增「工具」页**（底部导航第 4 个 tab）：下载国际版小米主题字体 v1.0.0
+  - 搜索小米主题商店字体（跨域走 root shell 解决）、缩略图预览、分页浏览
+  - 下载 mtz 并自动解压提取 `fonts/` 目录字体，日志实时展示（后台运行 + 轮询，避免阻塞 WebUI）
+- **等宽/Emoji 修复**：`mono.ttf` 与 `emoji.ttf` 改回**直接替换系统字体**（`DroidSansMono.ttf` / `NotoColorEmoji.ttf`，overlay 生效），不再使用自创独立字体文件（`FontMM-Mono` / `FontMM-Emoji` 不生效）
+- **Emoji 槽位完善**：清除 emoji 槽位时从模块 `backup/` 恢复内嵌补充字库 Emoji（安装时自动备份）；旧包更新继承列表补全 `emoji.ttf`
+
 ## v26.8.0-beta.2
 
 - **补充字库**：内置 OFL-1.1 / MIT 许可字体，在 `fonts.xml` 末尾作为全局 fallback：
