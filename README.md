@@ -85,10 +85,10 @@ FontMM 是一个用于在 ColorOS 设备上一键更换系统字体的 **Magisk 
 | 中文简体    | `FONTS/hans.ttf`  | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`、`SysFont-Regular.ttf` |
 | 中文繁体    | `FONTS/hant.ttf`  | `SysSans-Hant-Regular.ttf`、`SysFont-Hant-Regular.ttf`                                                                             |
 | 英文 & 数字 | `FONTS/en.ttf`    | `SysSans-En-Regular.ttf`                                                                                                           |
-| 等宽字体    | `FONTS/mono.ttf`  | `FontMM-Mono.ttf`（monospace 家族优先引用；未设置时不存在，自动使用系统 `DroidSansMono`）                                          |
-| Emoji 表情  | `FONTS/emoji.ttf` | `FontMM-Emoji.ttf`（und-Zsye 家族优先引用；未设置时不存在，自动使用系统默认 Emoji）                                                |
+| 等宽字体    | `FONTS/mono.ttf`  | `DroidSansMono.ttf`（直接替换系统等宽字体；未设置时移除模块内该文件，恢复系统原字体）         |
+| Emoji 表情  | `FONTS/emoji.ttf` | `NotoColorEmoji.ttf`（直接替换系统 Emoji；未设置时从模块备份恢复默认，见下）                     |
 
-**回退规则**：`hant.ttf` / `en.ttf` 缺失时对应槽位自动使用 `hans.ttf`；`hans.ttf` 缺失时 `apply.sh` 直接报错退出（WebUI 也会禁用「应用」按钮）。`mono.ttf` 未设置时**不覆盖**系统等宽字体（`FontMM-Mono.ttf` 不存在，monospace 家族自动回退系统 `DroidSansMono`）。`emoji.ttf` 未设置时**不覆盖**系统 Emoji（`FontMM-Emoji.ttf` 不存在，und-Zsye 家族自动回退系统默认 `NotoColorEmoji`）。
+**回退规则**：`hant.ttf` / `en.ttf` 缺失时对应槽位自动使用 `hans.ttf`；`hans.ttf` 缺失时 `apply.sh` 直接报错退出（WebUI 也会禁用「应用」按钮）。`mono.ttf` 未设置时**恢复**系统等宽字体（移除模块内 `DroidSansMono.ttf`，overlay 机制自动还原系统原文件）。`emoji.ttf` 未设置时**恢复**默认 Emoji（模块安装时已备份内嵌补充字库 `NotoColorEmoji.ttf` 到模块 `backup/`，清除槽位时自动还原；全新安装未设置时直接使用补充字库内嵌 Emoji）。
 
 > 注意：等宽字体若不含中文字形，等宽区域的中文会按系统机制回退到中文字体（属正常 fallback）。如需等宽中文，请使用含中文字形的等宽字体（如 Sarasa、Maple Mono 等）。
 

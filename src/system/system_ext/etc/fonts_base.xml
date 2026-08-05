@@ -226,8 +226,7 @@
     <alias name="ITC Stone Serif" to="serif" />
 
     <family name="monospace">
-        <!-- 用户等宽字体 (模块新建, 未设置时不存在则用系统 DroidSansMono 兜底) -->
-        <font weight="400" style="normal">FontMM-Mono.ttf</font>
+        <!-- 用户等宽字体: 直接替换系统 DroidSansMono (未设置时模块无此文件, 用系统原字体) -->
         <font weight="400" style="normal">DroidSansMono.ttf</font>
     </family>
     <alias name="sans-serif-monospace" to="monospace" />
@@ -1594,7 +1593,6 @@
     </family>
     <family lang="und-Zsye">
         <!-- 用户 Emoji 字体 (模块新建, 未设置时不存在则用补充字库 NotoColorEmoji 兜底) -->
-        <font weight="400" style="normal">FontMM-Emoji.ttf</font>
         <font weight="400" style="normal">NotoColorEmoji.ttf</font>
     </family>
     <family lang="und-Zsye">

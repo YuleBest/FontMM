@@ -62,7 +62,7 @@ IMPORT_OLD_FONTS() {
 
     mkdir -p "$MOD_WORK_PATH"
     local f=""
-    for f in hans.ttf hant.ttf en.ttf mono.ttf; do
+    for f in hans.ttf hant.ttf en.ttf mono.ttf emoji.ttf; do
         if [ -f "$old_fonts/$f" ]; then
             if cp -f "$old_fonts/$f" "$MOD_WORK_PATH/$f"; then
                 log_succ "已从旧模块继承字体: $f"
@@ -175,6 +175,12 @@ MAIN() {
     echo && log "开始准备字体..."
     DETECT_UPDATE_MODE
     IMPORT_OLD_FONTS
+
+    # 备份模块内嵌的补充字库 Emoji 字体, 供用户清除 emoji 槽位时恢复
+    if [ -f "$MODPATH/system/fonts/NotoColorEmoji.ttf" ] && [ ! -f "$MODPATH/backup/NotoColorEmoji.ttf" ]; then
+        mkdir -p "$MODPATH/backup"
+        cp -f "$MODPATH/system/fonts/NotoColorEmoji.ttf" "$MODPATH/backup/NotoColorEmoji.ttf"
+    fi
 
     echo && log "开始安装字体..."
     if sh "$MODPATH/apply.sh" "$MODPATH"; then
