@@ -1,10 +1,14 @@
 import '@material/web/button/outlined-button.js';
 import '@material/web/button/text-button.js';
+import '@material/web/button/filled-button.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/textfield/outlined-text-field.js';
 import '@material/web/dialog/dialog.js';
 import '@material/web/slider/slider.js';
+import '@material/web/select/outlined-select.js';
+import '@material/web/select/select-option.js';
+import '@material/web/progress/linear-progress.js';
 import '@material/web/labs/card/elevated-card.js';
 import '@material/web/labs/card/filled-card.js';
 import '@material/web/labs/navigationbar/navigation-bar.js';
@@ -16,7 +20,7 @@ import './style.scss';
 
 import { amStart, exec, enableEdgeToEdge, getSystemInfo, moduleInfo, toast } from './ksu';
 import { FontFilePicker } from './fontPicker';
-import { MiFontTool } from './tools';
+import { FontEditorToolDef, MiFontToolDef, ToolHost } from './tools';
 import type { FontSlot } from './types';
 import * as opentype from 'opentype.js';
 
@@ -486,8 +490,9 @@ void document.getElementById('dev-entry')?.addEventListener('click', () => {
 });
 
 // ---------------- 工具 ----------------
-const miFontTool = new MiFontTool();
-document.getElementById('mi-font-tool')?.addEventListener('click', () => miFontTool.open());
+const toolHost = new ToolHost();
+toolHost.register(MiFontToolDef);
+toolHost.register(FontEditorToolDef);
 
 // ---------------- 测试文本编辑 ----------------
 // 点击可编辑测试卡片 (简体/繁体/英文) 修改测试文本

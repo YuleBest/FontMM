@@ -102,6 +102,15 @@ async function mockExec(command: string): Promise<ExecResult> {
   if (command.includes('nohup sh') && command.includes('mi-font-download.sh')) {
     return fake('');
   }
+  // 字体编辑导出: 复制/目录/分块 base64/mv 全部模拟成功
+  if (
+    command.includes('cp -f') ||
+    command.includes("mkdir -p '/storage/emulated/0/Download/FontMM'") ||
+    command.includes('base64 -d >>') ||
+    command.includes("mv '")
+  ) {
+    return slow('');
+  }
   // 下载: 轮询日志文件 (模拟完整日志 + 结束标记)
   if (command.includes('mi-download.log')) {
     return slow(

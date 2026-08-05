@@ -16,7 +16,8 @@
     "@material/web": "^2.4.1",
     "kernelsu": "^3.0.2",
     "material-symbols": "^0.28.0",
-    "opentype.js": "^2.0.0"
+    "opentype.js": "^2.0.0",
+    "pyodide": "^314.0.3"
   },
   "devDependencies": {
     "oxfmt": "^0.61.0",

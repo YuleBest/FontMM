@@ -212,42 +212,13 @@
 
       <!-- 工具视图 -->
       <div id="tools-view" class="view view-tools">
-        <!-- 工具列表 -->
+        <!-- 工具列表 (ToolHost 渲染卡片) -->
         <div id="tools-list">
           <div class="home-title">工具</div>
-
-          <md-elevated-card class="home-card tool-card home-entry-card" id="mi-font-tool">
-            <div class="home-entry-row">
-              <div class="home-entry-icon">
-                <md-icon>download</md-icon>
-              </div>
-              <div class="home-entry-text">
-                <div class="home-entry-title">下载国际版小米主题字体</div>
-                <div class="home-entry-sub">v1.0.0 · 搜索并下载国际版主题商店的字体 (.mtz)</div>
-              </div>
-              <md-icon class="home-entry-arrow">chevron_right</md-icon>
-            </div>
-          </md-elevated-card>
+          <div id="tools-grid"></div>
         </div>
-
-        <!-- 工具详情: 下载国际版小米主题字体 -->
-        <div id="mi-font-page" class="tool-page" hidden>
-          <div class="view-topbar">
-            <md-icon-button id="mi-font-back" aria-label="返回">
-              <md-icon>arrow_back</md-icon>
-            </md-icon-button>
-            <span class="view-topbar-title">下载国际版小米主题字体</span>
-          </div>
-          <div class="mi-search-row">
-            <md-outlined-text-field
-              id="mi-keyword"
-              label="字体关键词"
-              style="flex: 1"
-            ></md-outlined-text-field>
-            <md-filled-button id="mi-search-btn">搜索</md-filled-button>
-          </div>
-          <div id="mi-result" class="mi-result"></div>
-        </div>
+        <!-- 工具页面挂载点 (打开工具时由 ToolHost 渲染) -->
+        <div id="tools-pages"></div>
       </div>
     </div>
 

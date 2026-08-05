@@ -20,6 +20,9 @@ importers:
       opentype.js:
         specifier: ^2.0.0
         version: 2.0.0
+      pyodide:
+        specifier: ^314.0.3
+        version: 314.0.3
     devDependencies:
       oxfmt:
         specifier: ^0.61.0
@@ -671,6 +674,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@types/emscripten@1.41.5':
+    resolution: {integrity: sha512-cMQm7pxu6BxtHyqJ7mQZ2kXWV5SLmugybFdHCBbJ5eHzOo6VhBckEgAT3//rP5FwPHNPeEiq4SmQ5ucBwsOo4Q==}
+
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
@@ -779,6 +785,10 @@ packages:
     resolution: {integrity: sha512-DTPx3RWSSnWyzLxQnlH0rJP+EW5ekl16ZU4/psbIhA0e53kJfdgaN5vKM+xP7yJtXVu+nfdVFmlgFDEKAe4Pyw==}
     engines: {node: ^10 || ^12 || >=14}
 
+  pyodide@314.0.3:
+    resolution: {integrity: sha512-sK40My6m8tmBUYtYH9au9rXUeh9x0wfahtHdOlGmJxZDsKBGKtP6KznyFB2+u/klbQTdDionR0uaVd176zVQzQ==}
+    engines: {node: '>=18.0.0'}
+
   readdirp@5.0.0:
     resolution: {integrity: sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ==}
     engines: {node: '>= 20.19.0'}
@@ -851,6 +861,18 @@ packages:
       tsx:
         optional: true
       yaml:
+        optional: true
+
+  ws@8.21.2:
+    resolution: {integrity: sha512-54dMVAo4WIe6SKy3vBgN+9bJZqqQ8IMRevAkOLQALhi49qkkQDQfWdAZ8KQlXiEabw88ARXXdUrlvtbKQX+aKw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
         optional: true
 
 snapshots:
@@ -1195,6 +1217,8 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.3':
     optional: true
 
+  '@types/emscripten@1.41.5': {}
+
   '@types/estree@1.0.9': {}
 
   '@types/trusted-types@2.0.7': {}
@@ -1335,6 +1359,14 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
+  pyodide@314.0.3:
+    dependencies:
+      '@types/emscripten': 1.41.5
+      ws: 8.21.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   readdirp@5.0.0: {}
 
   rollup@4.62.3:
@@ -1400,3 +1432,5 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
       sass: 1.102.0
+
+  ws@8.21.2: {}

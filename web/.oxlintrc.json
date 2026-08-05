@@ -5,6 +5,7 @@
     "correctness": "error"
   },
   "rules": {},
+  "ignorePatterns": ["public/pyodide/**"],
   "env": {
     "builtin": true
   }

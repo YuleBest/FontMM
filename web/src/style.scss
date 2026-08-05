@@ -887,3 +887,250 @@ md-dialog {
     }
   }
 }
+
+// ---- 字体分析 (Pyodide + fontTools) demo ----
+.view-topbar-sub {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  margin: -8px 0 16px 56px;
+}
+
+.ft-status {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: var(--md-shape-corner-medium);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.ft-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  md-outlined-select {
+    flex: 1;
+  }
+}
+
+.ft-result {
+  padding: 8px 16px;
+  --md-elevated-card-container-color: var(--md-sys-color-surface-container-low);
+
+  .ft-result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 0;
+    font-size: var(--md-sys-typescale-body-medium-size);
+
+    span:first-child {
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: var(--md-sys-typescale-body-small-size);
+    }
+
+    span:last-child {
+      font-weight: 500;
+      text-align: right;
+      word-break: break-all;
+    }
+  }
+
+  > .ft-result-row + .ft-result-row,
+  > #ft-axes .ft-result-row + .ft-result-row {
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+  }
+}
+
+// ---- 字体编辑 (Pyodide + fontTools) ----
+.ft-open-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  .ft-file-name {
+    font-size: var(--md-sys-typescale-body-small-size);
+    color: var(--md-sys-color-on-surface-variant);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+}
+
+.ft-edit {
+  margin-top: 20px;
+
+  .ft-edit-title {
+    font-size: var(--md-sys-typescale-title-medium-size);
+    font-weight: var(--md-sys-typescale-title-medium-weight);
+    margin-bottom: 12px;
+  }
+
+  .ft-control-row {
+    margin-bottom: 12px;
+
+    .ft-control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: var(--md-sys-typescale-body-small-size);
+      color: var(--md-sys-color-on-surface-variant);
+      margin-bottom: 4px;
+
+      .ft-control-val {
+        color: var(--md-sys-color-primary);
+        font-weight: 500;
+      }
+    }
+
+    md-slider {
+      width: 100%;
+    }
+  }
+}
+
+.ft-preview {
+  margin: 16px 0;
+  padding: 16px;
+  border-radius: var(--md-shape-corner-large);
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px dashed var(--md-sys-color-outline-variant);
+  cursor: pointer;
+
+  .ft-preview-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--md-sys-typescale-body-small-size);
+    color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: 8px;
+
+    .ft-preview-edit {
+      font-size: 16px;
+      color: var(--md-sys-color-primary);
+    }
+  }
+
+  .ft-preview-text {
+    font-size: 24px;
+    line-height: 1.6;
+    color: var(--md-sys-color-on-surface);
+    word-break: break-all;
+    white-space: pre-line;
+    transition: opacity 0.15s ease;
+  }
+
+  .ft-preview-busy {
+    opacity: 0.4;
+  }
+}
+
+.ft-export-btn {
+  width: 100%;
+}
+
+// ---- 工具页 (ToolHost 挂载) ----
+#tools-pages .tool-page {
+  animation: tool-page-in 0.25s
+    var(--md-sys-motion-emphasized-decelerating, cubic-bezier(0.05, 0.7, 0.1, 1));
+}
+
+@keyframes tool-page-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+// ---- 字体信息 (可编辑 name 字段) ----
+.ft-info-card {
+  margin-bottom: 20px;
+  padding: 16px;
+  border-radius: var(--md-shape-corner-large);
+  background: var(--md-sys-color-surface-container-low);
+
+  .ft-info-title {
+    font-size: var(--md-sys-typescale-title-medium-size);
+    font-weight: var(--md-sys-typescale-title-medium-weight);
+  }
+
+  .ft-info-sub {
+    font-size: var(--md-sys-typescale-body-small-size);
+    color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: 12px;
+  }
+
+  .ft-name-field {
+    margin-bottom: 10px;
+
+    md-outlined-text-field {
+      width: 100%;
+    }
+  }
+
+  .ft-info-readonly {
+    margin: 12px 0;
+
+    .ft-info-ro-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: var(--md-sys-typescale-body-medium-size);
+
+      span:first-child {
+        color: var(--md-sys-color-on-surface-variant);
+        font-size: var(--md-sys-typescale-body-small-size);
+      }
+
+      span:last-child {
+        font-weight: 500;
+      }
+    }
+  }
+
+  .ft-apply-btn {
+    width: 100%;
+  }
+}
+
+// ---- 字体编辑: 进度条 (操作上下文内) ----
+.ft-progress {
+  margin-top: 8px;
+  width: 100%;
+}
+
+// md-linear-progress 的 :host 自带 display, 会覆盖 UA 的 [hidden], 需强制隐藏
+.ft-progress[hidden] {
+  display: none !important;
+}
+
+// ---- 导出完成弹窗 ----
+.ft-export-done-text {
+  margin-bottom: 8px;
+}
+
+.ft-export-done-path {
+  padding: 10px 12px;
+  border-radius: var(--md-shape-corner-extra-small);
+  background: var(--md-sys-color-surface-container-high);
+  font-family: var(--md-sys-typescale-body-small-font, monospace);
+  font-size: var(--md-sys-typescale-body-small-size);
+  word-break: break-all;
+}
+
+// ---- 字体信息: 展开更多 ----
+.ft-names-more {
+  width: 100%;
+}
+
+.ft-names-extra {
+  animation: tool-page-in 0.2s ease;
+}
