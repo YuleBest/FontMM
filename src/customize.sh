@@ -39,6 +39,11 @@ log_succ() {
     echo "[*] $msg"
 }
 
+log_warn() {
+    local msg="$1"
+    echo "[!] $msg"
+}
+
 # ---------- 更新模式 ----------
 # 检测旧版 FontMM 是否已安装
 DETECT_UPDATE_MODE() {
@@ -76,13 +81,15 @@ IMPORT_OLD_FONTS() {
 }
 
 # ---------- 系统检查 ----------
-# 仅支持 ColorOS 且版本 >= 16.0, 否则拒绝安装
+# 不阻止安装: 非 ColorOS 16 时仅提示兼容性风险
 CHECK_COLOROS() {
     local oplus_api=""
     oplus_api="$(getprop ro.build.version.oplus.api 2>/dev/null || true)"
 
     if [ -z "$oplus_api" ]; then
-        log_err "当前系统不是 ColorOS, 本模块仅支持 ColorOS 16.0+"
+        log_warn "当前系统不是 ColorOS, 可能无法正常替换字体, 存在兼容性风险"
+        CONFIRM_RISK "当前系统不是 ColorOS" "字体替换可能无法生效, 且可能导致字体渲染异常"
+        return 0
     fi
 
     local oplus_display=""
@@ -90,7 +97,9 @@ CHECK_COLOROS() {
     local major="${oplus_display%%.*}"
 
     if [ "${major:-0}" -lt 16 ] 2>/dev/null; then
-        log_err "ColorOS 版本过低 (${oplus_display:-未知}), 需要 16.0 及以上"
+        log_warn "ColorOS 版本过低 (${oplus_display:-未知}), 建议 16.0 及以上, 低版本可能存在兼容性风险"
+        CONFIRM_RISK "ColorOS 版本过低 (${oplus_display:-未知})" "建议 16.0 及以上, 低版本可能存在兼容性风险"
+        return 0
     fi
 
     log_succ "ColorOS ${oplus_display}"
@@ -132,14 +141,58 @@ CHECK_META_MODULE() {
     return 0
 }
 
+# ---------- 音量键确认 ----------
+# 音量上键确认继续, 音量下键中止安装
+btn() {
+    while :; do
+        local c
+        c="$(getevent -qlc 1 2>/dev/null | awk '{ print $3 }')"
+        case "$c" in
+        KEY_VOLUMEUP)
+            echo "0"
+            return
+            ;;
+        KEY_VOLUMEDOWN)
+            echo "1"
+            return
+            ;;
+        esac
+    done
+}
+
+# 通用风险确认 (兼容性等场景)
+CONFIRM_RISK() {
+    local reason="$1"
+    local detail="$2"
+    echo
+    log "警告: $reason"
+    [ -n "$detail" ] && log "$detail"
+    log "请按音量上键确认继续安装, 按音量下键取消安装。"
+    if [ "$(btn)" = "1" ]; then
+        log_err "用户取消安装"
+    fi
+}
+
+CONFIRM_FONTLOADER_RISK() {
+    local reason="$1"
+    echo
+    log "警告: $reason"
+    log "未安装或版本过低的 FontLoader 可能导致开机卡死、字体渲染错误或系统异常。"
+    log "请按音量上键确认继续安装, 按音量下键取消安装。"
+    if [ "$(btn)" = "1" ]; then
+        log_err "用户取消安装"
+    fi
+}
+
 # ---------- 判断 FontLoader ----------
 CHECK_FONTLOADER() {
     local fontloader_moddir="/data/adb/modules/fontloader"
     local fontloader_github="https://github.com/KernelSU-Modules-Repo/fontloader/releases"
 
     if [ ! -d "$fontloader_moddir" ]; then
-        log "注意: 你还没安装 FontLoader, 如果字体显示效果不佳请安装"
+        log "注意: 你还没安装 FontLoader"
         log "前往 $fontloader_github 安装 FontLoader"
+        CONFIRM_FONTLOADER_RISK "当前设备未安装 FontLoader。"
         return 0
     fi
 
@@ -153,12 +206,14 @@ CHECK_FONTLOADER() {
     if [ -z "$version_code" ]; then
         log "注意: 无法读取 FontLoader 版本号, 建议更新到最新版"
         log "前往 $fontloader_github 更新 FontLoader"
+        CONFIRM_FONTLOADER_RISK "无法确认 FontLoader 版本。"
         return 0
     fi
 
     if [ "$version_code" -lt 33 ] 2>/dev/null; then
         log "注意: 你的 FontLoader 版本过低, 建议更新到 v1.2.3+"
         log "前往 $fontloader_github 更新 FontLoader"
+        CONFIRM_FONTLOADER_RISK "当前 FontLoader 版本低于 v1.2.3。"
     else
         log_succ "FontLoader 版本正常"
     fi

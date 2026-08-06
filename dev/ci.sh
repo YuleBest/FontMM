@@ -15,11 +15,11 @@ elif [ -d /data/user/0/com.termux/files/usr/bin ]; then
 fi
 
 # 工具可用性检查
-command -v shellcheck >/dev/null 2>&1 || {
+command -v shellcheck > /dev/null 2>&1 || {
     echo "[!] 未找到 shellcheck, 请先安装" >&2
     exit 1
 }
-command -v shfmt >/dev/null 2>&1 || {
+command -v shfmt > /dev/null 2>&1 || {
     echo "[!] 未找到 shfmt, 请先安装" >&2
     exit 1
 }
