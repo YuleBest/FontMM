@@ -6,6 +6,15 @@ export interface ExecResult {
   stderr: string;
 }
 
+/**
+ * Quote one argument for the POSIX shell used by KernelSU.exec.
+ * Prefer spawn() when the command can be expressed as argv; use this helper
+ * whenever exec() must receive a shell command containing external input.
+ */
+export function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 // dev 模式假文件系统 (用于文件选择器, 路径结构与 Android 一致)
 const FAKE_FS: Record<string, { dirs: string[]; fonts: string[]; files: string[] }> = {
   '/': { dirs: ['storage'], fonts: [], files: [] },

@@ -1,5 +1,5 @@
 import '@material/web/button/filled-button.js';
-import { exec } from './ksu';
+import { exec, shellQuote } from './ksu';
 import { FontFilePicker } from './fontPicker';
 import { renderPreview, type PreviewData } from './previewRenderer';
 
@@ -195,7 +195,7 @@ export const MiFontToolDef: ToolDef = {
       resultEl.textContent = '搜索中...';
       try {
         const url = `${SEARCH_API}${encodeURIComponent(keywordEl.value.trim() || '字体')}&page=${page}`;
-        const { errno, stdout } = await exec(`curl -s '${url}'`);
+        const { errno, stdout } = await exec(`curl -s ${shellQuote(url)}`);
         if (errno !== 0) throw new Error('curl 执行失败');
         const data = JSON.parse(stdout);
         const items = data?.data?.items ?? [];
@@ -219,7 +219,7 @@ export const MiFontToolDef: ToolDef = {
       let seen = 0;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 1000));
-        const { stdout } = await exec(`cat '${logFile}' 2>/dev/null || true`);
+        const { stdout } = await exec(`cat ${shellQuote(logFile)} 2>/dev/null || true`);
         if (stdout.length > seen) {
           logEl.textContent += stdout.slice(seen);
           seen = stdout.length;
@@ -240,7 +240,7 @@ export const MiFontToolDef: ToolDef = {
         const script = '/data/adb/modules/FontMM/webroot/mi-font-download.sh';
         const encodedTitle = encodeURIComponent(title);
         await exec(
-          `rm -f '${logFile}' && nohup sh '${script}' '${title}' '${link}' '${encodedTitle}' > '${logFile}' 2>&1 &`,
+          `rm -f ${shellQuote(logFile)} && nohup sh ${shellQuote(script)} ${shellQuote(title)} ${shellQuote(link)} ${shellQuote(encodedTitle)} > ${shellQuote(logFile)} 2>&1 &`,
         );
         logEl.hidden = false;
         logEl.textContent = '';
@@ -470,7 +470,9 @@ class FontEditorPage {
     this.statusEl.textContent = '正在复制字体到工作目录...';
     this.openProgress.hidden = false;
     try {
-      await exec(`mkdir -p '${WEBROOT_DIR}/work' && cp -f '${path}' '${WEBROOT_DIR}/work/${name}'`);
+      await exec(
+        `mkdir -p ${shellQuote(`${WEBROOT_DIR}/work`)} && cp -f ${shellQuote(path)} ${shellQuote(`${WEBROOT_DIR}/work/${name}`)}`,
+      );
       await this.loadFont(`work/${encodeURIComponent(name)}`, name);
     } catch (e) {
       this.statusEl.textContent = `复制失败: ${(e as Error).message}`;
@@ -647,15 +649,15 @@ class FontEditorPage {
       const outDir = '/storage/emulated/0/Download/FontMM';
       const tmp = `${WEBROOT_DIR}/work/export.tmp`;
 
-      await exec(`rm -f '${tmp}' && mkdir -p '${outDir}'`);
+      await exec(`rm -f ${shellQuote(tmp)} && mkdir -p ${shellQuote(outDir)}`);
       const CHUNK = 60000; // base64 字符, 约 45KB 二进制
       const total = Math.ceil(b64.length / CHUNK);
       for (let i = 0; i < b64.length; i += CHUNK) {
         const part = b64.slice(i, i + CHUNK);
-        await exec(`echo '${part}' | base64 -d >> '${tmp}'`);
+        await exec(`echo ${shellQuote(part)} | base64 -d >> ${shellQuote(tmp)}`);
         this.exportProgress.value = (i / CHUNK + 1) / total;
       }
-      await exec(`mv '${tmp}' '${outDir}/${outName}'`);
+      await exec(`mv ${shellQuote(tmp)} ${shellQuote(`${outDir}/${outName}`)}`);
       this.statusEl.textContent = `已导出: ${outDir}/${outName}`;
       // 弹窗反馈 (在操作附近, 明确可见)
       this.page.querySelector('#ft-export-path')!.textContent = `${outDir}/${outName}`;

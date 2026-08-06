@@ -18,7 +18,15 @@ import 'material-symbols/outlined.css';
 import './theme.scss';
 import './style.scss';
 
-import { amStart, exec, enableEdgeToEdge, getSystemInfo, moduleInfo, toast } from './ksu';
+import {
+  amStart,
+  exec,
+  enableEdgeToEdge,
+  getSystemInfo,
+  moduleInfo,
+  shellQuote,
+  toast,
+} from './ksu';
 import { FontFilePicker } from './fontPicker';
 import { FontEditorToolDef, MiFontToolDef, ToolHost } from './tools';
 import type { FontSlot } from './types';
@@ -132,7 +140,7 @@ async function readFontInfo(
 async function refreshSlotInfo(slot: FontSlot) {
   if (!slot.path) return;
   try {
-    await exec(`cp -f '${slot.path}' '${TEST_FONT_DIR}/${slot.key}.ttf'`);
+    await exec(`cp -f ${shellQuote(slot.path)} ${shellQuote(`${TEST_FONT_DIR}/${slot.key}.ttf`)}`);
     const info = await readFontInfo(`${slot.key}.ttf`);
     if (info.name) slot.fileName = info.name;
     if (info.sizeText) slot.sizeText = info.sizeText;
@@ -239,7 +247,7 @@ function renderSlots() {
 }
 
 async function copyFont(src: string, dest: string) {
-  const { errno, stderr } = await exec(`cp -f '${src}' '${dest}'`);
+  const { errno, stderr } = await exec(`cp -f ${shellQuote(src)} ${shellQuote(dest)}`);
   if (errno !== 0) throw new Error(`复制失败: ${stderr}`);
 }
 
@@ -258,7 +266,7 @@ async function apply() {
         await copyFont(slots.hant.path, `${FONTS_DIR}/hant.ttf`);
       }
     } else {
-      await exec(`rm -f '${FONTS_DIR}/hant.ttf'`);
+      await exec(`rm -f ${shellQuote(`${FONTS_DIR}/hant.ttf`)}`);
     }
 
     if (slots.en.path) {
@@ -266,7 +274,7 @@ async function apply() {
         await copyFont(slots.en.path, `${FONTS_DIR}/en.ttf`);
       }
     } else {
-      await exec(`rm -f '${FONTS_DIR}/en.ttf'`);
+      await exec(`rm -f ${shellQuote(`${FONTS_DIR}/en.ttf`)}`);
     }
 
     if (slots.mono.path) {
@@ -274,7 +282,7 @@ async function apply() {
         await copyFont(slots.mono.path, `${FONTS_DIR}/mono.ttf`);
       }
     } else {
-      await exec(`rm -f '${FONTS_DIR}/mono.ttf'`);
+      await exec(`rm -f ${shellQuote(`${FONTS_DIR}/mono.ttf`)}`);
     }
 
     if (slots.emoji.path) {
@@ -282,7 +290,7 @@ async function apply() {
         await copyFont(slots.emoji.path, `${FONTS_DIR}/emoji.ttf`);
       }
     } else {
-      await exec(`rm -f '${FONTS_DIR}/emoji.ttf'`);
+      await exec(`rm -f ${shellQuote(`${FONTS_DIR}/emoji.ttf`)}`);
     }
 
     const { errno, stdout, stderr } = await exec('sh /data/adb/modules/FontMM/apply.sh');
@@ -574,7 +582,9 @@ async function ensureFontsCopy(): Promise<string[]> {
 // 列出 fonts-test/ 下的字体文件 (每行一个完整路径)
 async function listFontsDir(): Promise<string[]> {
   try {
-    const { errno, stdout } = await exec(`find '${TEST_FONT_DIR}' -maxdepth 1 -mindepth 1 -type f`);
+    const { errno, stdout } = await exec(
+      `find ${shellQuote(TEST_FONT_DIR)} -maxdepth 1 -mindepth 1 -type f`,
+    );
     if (errno !== 0) return [];
     return stdout
       .split('\n')

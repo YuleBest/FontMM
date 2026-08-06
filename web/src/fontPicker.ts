@@ -4,7 +4,7 @@ import '@material/web/list/list-item.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/button/text-button.js';
-import { exec } from './ksu';
+import { exec, shellQuote } from './ksu';
 
 export interface FileItem {
   name: string;
@@ -103,8 +103,8 @@ export class FontFilePicker {
   // (兼容 busybox 与 GNU find, 不解析 ls 的列输出)
   private async readDir(path: string): Promise<{ items: FileItem[]; failed: boolean }> {
     const [dirRes, fileRes] = await Promise.all([
-      exec(`find "${path}" -maxdepth 1 -mindepth 1 -type d -print0`),
-      exec(`find "${path}" -maxdepth 1 -mindepth 1 -type f -print0`),
+      exec(`find ${shellQuote(path)} -maxdepth 1 -mindepth 1 -type d -print0`),
+      exec(`find ${shellQuote(path)} -maxdepth 1 -mindepth 1 -type f -print0`),
     ]);
 
     if (dirRes.errno !== 0 || fileRes.errno !== 0) {
