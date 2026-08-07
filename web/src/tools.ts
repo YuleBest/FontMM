@@ -654,7 +654,8 @@ class FontEditorPage {
       const tmp = `${WEBROOT_DIR}/work/export.tmp`;
 
       await exec(`rm -f ${shellQuote(tmp)} && mkdir -p ${shellQuote(outDir)}`);
-      const CHUNK = 60000; // base64 字符, 约 45KB 二进制
+      // exec 命令长度真机受限 (~32KB), 分块必须远小于该限制 (60000 会截断导出)
+      const CHUNK = 8000; // base64 字符, 约 6KB 二进制
       const total = Math.ceil(b64.length / CHUNK);
       for (let i = 0; i < b64.length; i += CHUNK) {
         const part = b64.slice(i, i + CHUNK);

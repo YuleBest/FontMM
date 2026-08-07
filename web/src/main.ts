@@ -29,7 +29,7 @@ import {
 } from './ksu';
 import { FontFilePicker } from './fontPicker';
 import { FontEditorToolDef, MiFontToolDef, ToolHost } from './tools';
-import { applyWghtMode } from './fontsXml';
+import { averagedAxis, WEIGHTS } from './fontsXml';
 import type { FontSlot } from './types';
 import * as opentype from 'opentype.js';
 
@@ -303,12 +303,12 @@ function pickWghtRange(): { min: number; max: number } | null {
 }
 
 // 读取字重覆写模式 (FONTS/wght-mode.txt), 默认 0 不处理
-async function readWghtMode(): Promise<0 | 1 | 2> {
+async function readWghtMode(): Promise<0 | 1 | 2 | 3> {
   try {
     const { errno, stdout } = await exec(`cat '${FONTS_DIR}/wght-mode.txt' 2>/dev/null || true`);
     if (errno === 0) {
       const n = Number(stdout.trim());
-      if (n === 1 || n === 2) return n as 0 | 1 | 2;
+      if (n === 1 || n === 2 || n === 3) return n as 0 | 1 | 2 | 3;
     }
   } catch {
     // 忽略
@@ -316,35 +316,25 @@ async function readWghtMode(): Promise<0 | 1 | 2> {
   return 0;
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let s = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    s += btoa(String.fromCharCode(...bytes.subarray(i, i + 0x8000)));
-  }
-  return s;
-}
+// 覆写字体配置: 调用模块内置 Go 程序 fontmm-wght (本地读写全部 6 个 XML, 无命令长度限制)
+const WGHT_BIN = '/data/adb/modules/FontMM/tools/fontmm-wght';
 
-// 覆写模块 fonts.xml 的 sans-serif family 段: cp -> fetch -> 字符串替换 -> base64 分块写回
-async function applyWghtOverride(mode: 1 | 2, min: number, max: number): Promise<void> {
-  const modXml = '/data/adb/modules/FontMM/system/etc/fonts.xml';
-  const tmp = `${WEBROOT_DIR}/work/fonts.new.xml`;
+async function applyWghtOverride(mode: 1 | 2 | 3, min: number, max: number): Promise<void> {
+  const mapArg = mode === 3 ? ` -map '${FONTS_DIR}/wght-map.txt'` : '';
+  // 日志写到 FONTS/wght-apply.log 方便真机排查; 先 chmod +x 保证可执行
+  const logFile = `${FONTS_DIR}/wght-apply.log`;
+  const cmd = `chmod +x '${WGHT_BIN}' 2>/dev/null; '${WGHT_BIN}' -mode ${mode} -min ${min} -max ${max}${mapArg} > '${logFile}' 2>&1`;
   try {
-    await exec(
-      `mkdir -p '${WEBROOT_DIR}/work' && cp -f '${modXml}' '${WEBROOT_DIR}/work/fonts.xml'`,
-    );
-    const res = await fetch('work/fonts.xml');
-    if (!res.ok) throw new Error(`读取 fonts.xml 失败 (${res.status})`);
-    const xml = await res.text();
-    const replaced = applyWghtMode(xml, mode, min, max);
-    if (replaced === xml) return; // 无变化 (mode 0 或无 sans-serif family)
-    const b64 = bytesToBase64(new TextEncoder().encode(replaced));
-    await exec(`rm -f '${tmp}'`);
-    const CHUNK = 30000;
-    for (let i = 0; i < b64.length; i += CHUNK) {
-      const part = b64.slice(i, i + CHUNK);
-      await exec(`echo '${part}' | base64 -d >> '${tmp}'`);
+    const { errno } = await exec(cmd);
+    // 读取并回显执行日志 (同时 console 输出供排查)
+    const { stdout: log } = await exec(`cat '${logFile}' 2>/dev/null || true`);
+    console.log(`[wght-override] mode=${mode} min=${min} max=${max} errno=${errno}`);
+    if (log) console.log(`[wght-override] log:\n${log}`);
+    if (errno !== 0) {
+      console.warn('[wght-override] 执行失败:', log);
+      // 覆写失败不阻断应用主流程, 但把失败原因带出
+      throw new Error(log || `fontmm-wght 执行失败 (errno=${errno})`);
     }
-    await exec(`cp -f '${tmp}' '${modXml}'`);
   } catch (e) {
     // 覆写失败不阻断应用主流程
     console.warn('字重范围覆写失败:', e);
@@ -357,10 +347,11 @@ async function apply() {
   renderSlots();
   try {
     // 字重范围覆写: 用 UI 当前模式 (持久化到 FONTS/wght-mode.txt), 仅当存在可变字体且模式非 0 时处理
-    const wghtMode = (Number(wghtModeSelect?.value ?? 0) || 0) as 0 | 1 | 2;
+    const wghtMode = (Number(wghtModeSelect?.value ?? 0) || 0) as 0 | 1 | 2 | 3;
     await writeWghtMode(wghtMode);
     const wghtPick = pickWghtRange();
     if (wghtMode !== 0 && wghtPick) {
+      // Go 程序自行读取 wght-map.txt (mode 3)
       await applyWghtOverride(wghtMode, wghtPick.min, wghtPick.max);
     }
 
@@ -423,9 +414,11 @@ applyBtn?.addEventListener('click', apply);
 renderSlots();
 
 // ---------------- 字重覆写模式选择 ----------------
+const wghtMapEl = document.getElementById('wght-map');
+const wghtMapRows = document.getElementById('wght-map-rows');
 
 // 写入模式到 FONTS/wght-mode.txt
-async function writeWghtMode(mode: 0 | 1 | 2): Promise<void> {
+async function writeWghtMode(mode: 0 | 1 | 2 | 3): Promise<void> {
   try {
     await exec(`echo '${mode}' > '${FONTS_DIR}/wght-mode.txt'`);
   } catch {
@@ -433,11 +426,144 @@ async function writeWghtMode(mode: 0 | 1 | 2): Promise<void> {
   }
 }
 
+// 读取自定义字重映射 (FONTS/wght-map.txt: 每行 "weight axis")
+async function readWghtMap(): Promise<Record<number, number>> {
+  const map: Record<number, number> = {};
+  try {
+    const { errno, stdout } = await exec(`cat '${FONTS_DIR}/wght-map.txt' 2>/dev/null || true`);
+    if (errno === 0) {
+      for (const line of stdout.split('\n')) {
+        const m = line.trim().match(/^(\d+)\s+(\d+)$/);
+        if (m) map[Number(m[1])] = Number(m[2]);
+      }
+    }
+  } catch {
+    // 忽略
+  }
+  return map;
+}
+
+// 保存自定义字重映射 (DOM 驱动: 每行 data-weight + 输入值)
+async function saveWghtMap(): Promise<void> {
+  const lines: string[] = [];
+  document.querySelectorAll<HTMLElement>('#wght-map-rows .wght-map-row').forEach((row) => {
+    const w = Number(row.dataset.weight);
+    const input = row.querySelector<HTMLInputElement>('.wght-map-input');
+    const v = Number(input?.value);
+    if (Number.isFinite(w) && Number.isFinite(v)) lines.push(`${w} ${Math.round(v)}`);
+  });
+  try {
+    await exec(`rm -f '${FONTS_DIR}/wght-map.txt'`);
+    for (const line of lines) {
+      await exec(`echo '${line}' >> '${FONTS_DIR}/wght-map.txt'`);
+    }
+  } catch {
+    // 忽略写入失败
+  }
+}
+
+// 追加一行映射 (weight 标签 + 滑块 + 输入框 + 删除按钮)
+function appendWghtMapRow(
+  rowsEl: HTMLElement,
+  w: number,
+  axis: number,
+  min: number,
+  max: number,
+): void {
+  const row = document.createElement('div');
+  row.className = 'wght-map-row';
+  row.dataset.weight = String(w);
+
+  const label = document.createElement('span');
+  label.className = 'wght-map-label';
+  label.textContent = String(w);
+
+  const slider = document.createElement('md-slider') as any;
+  slider.min = min;
+  slider.max = max;
+  slider.step = 1;
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = String(min);
+  input.max = String(max);
+  input.className = 'wght-map-input';
+  input.ariaLabel = `weight ${w} 的轴值`;
+
+  const setBoth = (v: number) => {
+    const clamped = Math.min(max, Math.max(min, Math.round(v)));
+    slider.value = clamped;
+    input.value = String(clamped);
+  };
+  setBoth(axis);
+
+  slider.addEventListener('input', () => {
+    input.value = String(slider.value);
+  });
+  slider.addEventListener('change', () => void saveWghtMap());
+  input.addEventListener('input', () => {
+    const v = Number(input.value);
+    if (Number.isFinite(v)) slider.value = Math.min(max, Math.max(min, v));
+  });
+  input.addEventListener('change', () => {
+    const v = Number(input.value);
+    if (!Number.isFinite(v)) {
+      input.value = String(slider.value);
+      return;
+    }
+    setBoth(v);
+    void saveWghtMap();
+  });
+
+  const delBtn = document.createElement('md-icon-button') as any;
+  delBtn.ariaLabel = `删除字重 ${w} 映射`;
+  delBtn.className = 'wght-map-del';
+  const delIcon = document.createElement('md-icon');
+  delIcon.textContent = 'close';
+  delBtn.appendChild(delIcon);
+  delBtn.addEventListener('click', () => {
+    row.remove();
+    void saveWghtMap();
+  });
+
+  row.append(label, slider, input, delBtn);
+  rowsEl.appendChild(row);
+}
+
+// 渲染字重映射行 (读 wght-map.txt; 空时默认 9 档平均插值)
+function renderWghtMapRows(): void {
+  if (!wghtMapRows) return;
+  const range = pickWghtRange();
+  const min = range?.min ?? 1;
+  const max = range?.max ?? 1000;
+  void readWghtMap().then((saved) => {
+    if (!wghtMapRows) return;
+    wghtMapRows.textContent = '';
+    const map: Record<number, number> = Object.keys(saved).length > 0 ? saved : {};
+    if (Object.keys(map).length === 0) {
+      for (const w of WEIGHTS) map[w] = averagedAxis(min, max, w);
+    }
+    for (const w of Object.keys(map)
+      .map(Number)
+      .sort((a, b) => a - b)) {
+      appendWghtMapRow(wghtMapRows, w, map[w], min, max);
+    }
+  });
+}
+
+// 根据模式显示/隐藏映射编辑区
+function updateWghtMapVisibility(): void {
+  const isCustom = Number(wghtModeSelect?.value) === 3;
+  if (wghtMapEl) wghtMapEl.hidden = !isCustom;
+  if (isCustom) renderWghtMapRows();
+}
+
 // 回填模式选择
 async function initWghtModeUI(): Promise<void> {
   const mode = await readWghtMode();
   if (wghtModeSelect) wghtModeSelect.value = String(mode);
   updateWghtModeDisabled();
+  updateWghtMapVisibility();
 }
 
 // 根据是否有可变字体决定是否禁用 (emoji/mono 不计入)
@@ -453,9 +579,48 @@ function updateWghtModeDisabled(): void {
 
 wghtModeSelect?.addEventListener('change', () => {
   const v = Number(wghtModeSelect.value);
-  if (v === 0 || v === 1 || v === 2) void writeWghtMode(v as 0 | 1 | 2);
+  if (v === 0 || v === 1 || v === 2 || v === 3) {
+    void writeWghtMode(v as 0 | 1 | 2 | 3);
+    updateWghtMapVisibility();
+  }
 });
 void initWghtModeUI();
+
+// ---------------- 新增字重映射 ----------------
+const wghtMapAddBtn = document.getElementById('wght-map-add');
+const wghtMapAddDialog = document.getElementById('wght-map-add-dialog') as any;
+const wghtMapAddWeight = document.getElementById('wght-map-add-weight') as HTMLInputElement;
+
+wghtMapAddBtn?.addEventListener('click', () => {
+  if (wghtMapAddWeight) wghtMapAddWeight.value = '';
+  if (wghtMapAddDialog) wghtMapAddDialog.open = true;
+});
+document.getElementById('wght-map-add-cancel')?.addEventListener('click', () => {
+  if (wghtMapAddDialog) wghtMapAddDialog.open = false;
+});
+document.getElementById('wght-map-add-confirm')?.addEventListener('click', () => {
+  if (wghtMapAddDialog) wghtMapAddDialog.open = false;
+  const w = Number(wghtMapAddWeight?.value);
+  if (!Number.isFinite(w) || w < 1 || w > 1000) {
+    toast('字重等级需为 1-1000 的整数');
+    return;
+  }
+  const weight = Math.round(w);
+  // 重复 weight 则更新, 否则新增一行
+  const existing = document.querySelector<HTMLElement>(
+    `#wght-map-rows .wght-map-row[data-weight="${weight}"]`,
+  );
+  if (!wghtMapRows) return;
+  const range = pickWghtRange();
+  const min = range?.min ?? 1;
+  const max = range?.max ?? 1000;
+  if (existing) {
+    existing.scrollIntoView({ block: 'center' });
+  } else {
+    appendWghtMapRow(wghtMapRows, weight, averagedAxis(min, max, weight), min, max);
+  }
+  void saveWghtMap();
+});
 
 // ---------------- 导航与视图切换 ----------------
 const homeView = document.getElementById('home-view')!;

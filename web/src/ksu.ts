@@ -75,6 +75,21 @@ async function mockExec(command: string): Promise<ExecResult> {
   if (command.includes('wght-mode.txt')) {
     return command.includes('echo') ? fake('') : slow('1');
   }
+  // 字重覆写: Go 程序 fontmm-wght (模拟成功日志)
+  if (command.includes('fontmm-wght')) {
+    return slow(
+      '[✓] 已覆写: system/etc/fonts.xml\n[✓] 已覆写: system/etc/fonts_base.xml\n[✓] 已覆写: system/etc/fonts_ule.xml\n[✓] 已覆写: system/etc/font_fallback.xml\n[✓] 已覆写: system/system_ext/etc/fonts_base.xml\n[✓] 已覆写: system/system_ext/etc/fonts_ule.xml\n[*] 完成, 共覆写 6 个文件',
+    );
+  }
+  // 覆写日志回显: cat wght-apply.log
+  if (command.includes('wght-apply.log')) {
+    return slow('[✓] 已覆写: system/etc/fonts.xml\n[✓] 完成, 共覆写 6 个文件');
+  }
+  // 自定义字重映射: cat 返回模拟映射, rm/echo 写入模拟成功
+  if (command.includes('wght-map.txt')) {
+    if (command.includes('rm -f') || command.includes('echo')) return fake('');
+    return slow('100 160\n200 250\n300 330\n400 400\n500 480\n600 560\n700 650\n800 680\n900 700');
+  }
   // 覆写 fonts.xml: cp 模拟成功 (fetch work/fonts.xml 在 dev 下 404, 覆写被跳过, 不阻断应用)
   if (command.includes('fonts.xml')) {
     return slow('');

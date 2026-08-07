@@ -100,19 +100,57 @@
       <main id="config-view" class="view view-config">
         <div class="home-title">字体配置</div>
 
-        <div class="wght-mode-row">
-          <div class="wght-mode-info">
-            <div class="wght-mode-title">字重覆写模式</div>
-            <div class="wght-mode-sub" id="wght-mode-sub">
-              可变字体 wght 范围与实际字重等级不符时, 按所选方式覆写 sans-serif 配置
+        <!-- 高级配置 -->
+        <md-elevated-card class="wght-advanced">
+          <div class="wght-advanced-title">高级配置</div>
+
+          <div class="wght-mode-row">
+            <div class="wght-mode-info">
+              <div class="wght-mode-title">字重覆写模式</div>
+              <div class="wght-mode-sub" id="wght-mode-sub">
+                可变字体 wght 范围与实际字重等级不符时, 按所选方式覆写 sans-serif 配置
+              </div>
             </div>
+            <md-outlined-select id="wght-mode-select" label="覆写模式">
+              <md-select-option value="0" selected>不处理</md-select-option>
+              <md-select-option value="1">裁切粗细等级</md-select-option>
+              <md-select-option value="2">平均分配字重</md-select-option>
+              <md-select-option value="3">自定义映射</md-select-option>
+            </md-outlined-select>
           </div>
-          <md-outlined-select id="wght-mode-select" label="覆写模式">
-            <md-select-option value="0" selected>不处理</md-select-option>
-            <md-select-option value="1">裁切粗细等级</md-select-option>
-            <md-select-option value="2">平均分配字重</md-select-option>
-          </md-outlined-select>
-        </div>
+
+          <!-- 自定义字重映射 (模式=自定义映射时显示) -->
+          <div class="wght-map" id="wght-map" hidden>
+            <div class="wght-map-title">字重映射</div>
+            <div class="wght-map-sub">
+              设置每个字重等级对应的实际 wght 轴值 (字重等级 1-1000, 可增删)
+            </div>
+            <div id="wght-map-rows"></div>
+            <md-text-button id="wght-map-add" class="wght-map-add">
+              <md-icon slot="icon">add</md-icon>
+              新增映射
+            </md-text-button>
+          </div>
+
+          <!-- 新增字重映射对话框 -->
+          <md-dialog id="wght-map-add-dialog">
+            <div slot="headline">新增字重映射</div>
+            <div slot="content">
+              <input
+                type="number"
+                id="wght-map-add-weight"
+                class="wght-map-input wght-map-add-input"
+                min="1"
+                max="1000"
+                placeholder="字重等级 (1-1000)"
+              />
+            </div>
+            <div slot="actions">
+              <md-text-button id="wght-map-add-cancel">取消</md-text-button>
+              <md-text-button id="wght-map-add-confirm">添加</md-text-button>
+            </div>
+          </md-dialog>
+        </md-elevated-card>
 
         <div id="slots"></div>
       </main>

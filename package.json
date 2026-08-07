@@ -10,6 +10,9 @@
     "fmt:check": "pnpm -C web fmt:check",
     "type-check": "pnpm -C web type-check",
     "shellcheck": "find src -name '*.sh' -print0 | xargs -0 shellcheck",
-    "shfmt": "find src -name '*.sh' -print0 | xargs -0 shfmt -i 4 -w -d"
+    "shfmt": "find src -name '*.sh' -print0 | xargs -0 shfmt -i 4 -w -d",
+    "go:test": "cd golang && go vet ./... && go test ./...",
+    "go:build": "bash dev/build-wght.sh",
+    "go:build:local": "cd golang && go build -o /tmp/fontmm-wght ./cmd/fontmm-wght"
   }
 }

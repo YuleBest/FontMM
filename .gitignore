@@ -7,3 +7,5 @@ reasonix.toml
 .agent/
 
 .ref/
+src/tools/fontmm-wght
+golang/bin/

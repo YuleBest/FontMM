@@ -32,6 +32,11 @@ rm -f "$PRE_OUT" "$TPL_OUT"   # 先删旧的, 防止 zip 增量更新残留已�
 # 0. 同步派生字体配置 (fonts.xml 为唯一源, 复制生成 fonts_base/ule/font_fallback 等)
 bash "$ROOT_DIR/dev/sync-fonts-xml.sh"
 
+# 0.5 交叉编译 fontmm-wght (Go -> android-arm64, 字重范围覆写用)
+bash "$ROOT_DIR/dev/build-wght.sh"
+# 保证工具二进制可执行 (zip 权限位 -> Magisk 安装后保持)
+chmod 755 "$SRC_DIR/tools/fontmm-wght"
+
 # 2. 打包函数: $1=输出路径, $2=额外排除模式 (可选)
 #    (zip 根 = 模块根, 不含 src 这层目录)
 pack() {

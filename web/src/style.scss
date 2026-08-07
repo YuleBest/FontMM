@@ -1143,33 +1143,130 @@ md-dialog {
 }
 
 // ---- 字重覆写模式选择 ----
-.wght-mode-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+
+// ---- 高级配置 (字重覆写 + 自定义映射) ----
+.wght-advanced {
   margin-bottom: 16px;
-  padding: 14px 16px;
-  border-radius: var(--md-shape-corner-large);
-  background: var(--md-sys-color-surface-container-low);
+  padding: 16px;
+  --md-elevated-card-container-shape: var(--md-shape-corner-large);
 
-  .wght-mode-info {
-    flex: 1;
-    min-width: 0;
+  .wght-advanced-title {
+    font-size: var(--md-sys-typescale-title-medium-size);
+    font-weight: var(--md-sys-typescale-title-medium-weight);
+    margin-bottom: 4px;
+  }
 
-    .wght-mode-title {
-      font-size: var(--md-sys-typescale-title-medium-size);
-      font-weight: var(--md-sys-typescale-title-medium-weight);
+  .wght-mode-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .wght-mode-info {
+      flex: 1;
+      min-width: 0;
+
+      .wght-mode-title {
+        font-size: var(--md-sys-typescale-body-large-size);
+        font-weight: 500;
+      }
+
+      .wght-mode-sub {
+        font-size: var(--md-sys-typescale-body-small-size);
+        color: var(--md-sys-color-on-surface-variant);
+        margin-top: 2px;
+      }
     }
 
-    .wght-mode-sub {
+    md-outlined-select {
+      flex-shrink: 0;
+      min-width: 150px;
+    }
+  }
+
+  .wght-map {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+
+    .wght-map-title {
+      font-size: var(--md-sys-typescale-title-small-size);
+      font-weight: 500;
+    }
+
+    .wght-map-sub {
       font-size: var(--md-sys-typescale-body-small-size);
       color: var(--md-sys-color-on-surface-variant);
-      margin-top: 2px;
+      margin-bottom: 8px;
+    }
+
+    .wght-map-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 2px 0;
+
+      .wght-map-label {
+        flex-shrink: 0;
+        width: 28px;
+        text-align: right;
+        font-size: var(--md-sys-typescale-body-small-size);
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
+      md-slider {
+        flex: 1;
+        // 覆盖组件默认 min-inline-size: 200px, 适配手机窄屏
+        min-inline-size: 64px;
+        min-width: 64px;
+      }
+
+      .wght-map-input {
+        flex-shrink: 0;
+        width: 64px;
+      }
+
+      .wght-map-del {
+        flex-shrink: 0;
+        width: 32px;
+        height: 32px;
+        --md-icon-button-state-layer-size: 32px;
+
+        md-icon {
+          font-size: 18px;
+        }
+      }
+    }
+
+    .wght-map-add {
+      margin-top: 8px;
     }
   }
+}
 
-  md-outlined-select {
-    flex-shrink: 0;
-    min-width: 150px;
+// 字重映射输入框: 底线式 (顶层通用, 行内与新增弹窗共用)
+.wght-map-input {
+  padding: 4px 0 4px 4px;
+  border: none;
+  border-bottom: 1px solid var(--md-sys-color-outline);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-body-medium-size);
+  outline: none;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    border-bottom-color: var(--md-sys-color-primary);
+    border-bottom-width: 2px;
   }
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+.wght-map-add-input {
+  width: 100%;
+  box-sizing: border-box;
 }
