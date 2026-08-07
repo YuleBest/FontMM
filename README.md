@@ -1,7 +1,11 @@
 <h1 align="center">FontMM</h1>
 
 <div align="center">
-一个用于快速更换系统字体的 Magisk 模块，内置 WebUI 以及一些好用的功能
+    一个用于快速更换系统字体的 Magisk 模块，内置 WebUI 以及一些好用的功能
+</div>
+
+<div align="center">
+  <a href="#特性">特性</a> | <a href="#安装">安装</a> | <a href="#使用">使用</a> |  <a href="#技术细节">开发</a> | <a href="#致谢">致谢</a> | <a href="#许可">许可</a><br>
 </div>
 
 ## 特性
