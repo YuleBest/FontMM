@@ -496,7 +496,11 @@ class FontEditorPage {
       this.renderNameFields(info.names ?? {});
       this.page.querySelector('#ft-glyphs')!.textContent = String(info.glyphs);
       this.page.querySelector('#ft-units')!.textContent = String(info.units);
-      this.page.querySelector('#ft-variable')!.textContent = info.variable ? '是' : '否';
+      this.page.querySelector('#ft-variable')!.textContent = info.variable
+        ? info.wghtRange
+          ? `是 (wght ${info.wghtRange})`
+          : '是'
+        : '否';
 
       this.page.querySelector('#ft-file-name')!.textContent = name;
       this.infoCard.hidden = false;

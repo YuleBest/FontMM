@@ -108,20 +108,39 @@ function extractFamilyName(font: any): string | null {
 }
 
 // 读取 fonts-test/ 下字体文件的名称与大小 (WebView 仅能访问 webroot 内文件)
+// 可变字体时同时返回 wght 轴范围
+function extractWghtRange(font: any): string | undefined {
+  const fvar = font?.tables?.fvar;
+  if (!fvar?.axes) return undefined;
+  const wght = fvar.axes.find((a: any) => a.tag === 'wght');
+  if (!wght) return undefined;
+  return `${Math.round(wght.minValue)}-${Math.round(wght.maxValue)}`;
+}
+
 async function readFontInfo(
   file: string,
-): Promise<{ name?: string; sizeText?: string; isVariable?: boolean }> {
+): Promise<{ name?: string; sizeText?: string; isVariable?: boolean; wghtRange?: string }> {
   // dev 假数据: 模拟各槽位字体的名称/大小/可变标识
   if (import.meta.env.DEV) {
-    const MOCK_FONT_INFO: Record<string, { name: string; size: string; variable: boolean }> = {
-      'hans.ttf': { name: 'HarmonyOS Sans SC', size: '13.5 MB', variable: true },
+    const MOCK_FONT_INFO: Record<
+      string,
+      { name: string; size: string; variable: boolean; wght?: string }
+    > = {
+      'hans.ttf': { name: 'HarmonyOS Sans SC', size: '13.5 MB', variable: true, wght: '100-900' },
       'hant.ttf': { name: '源樣明體', size: '21.2 MB', variable: false },
-      'en.ttf': { name: 'Inter Variable', size: '0.8 MB', variable: true },
+      'en.ttf': { name: 'Inter Variable', size: '0.8 MB', variable: true, wght: '100-900' },
       'mono.ttf': { name: 'JetBrains Mono', size: '1.2 MB', variable: false },
       'emoji.ttf': { name: 'Noto Color Emoji', size: '9.8 MB', variable: false },
     };
     const mock = MOCK_FONT_INFO[file];
-    return mock ? { name: mock.name, sizeText: mock.size, isVariable: mock.variable } : {};
+    return mock
+      ? {
+          name: mock.name,
+          sizeText: mock.size,
+          isVariable: mock.variable,
+          wghtRange: mock.wght,
+        }
+      : {};
   }
   try {
     const res = await fetch(`fonts-test/${file}`);
@@ -130,7 +149,12 @@ async function readFontInfo(
     const font = opentype.parse(buf);
     const name = extractFamilyName(font);
     const sizeText = `${(buf.byteLength / 1024 / 1024).toFixed(1)} MB`;
-    return { name: name ?? undefined, sizeText, isVariable: Boolean(font.tables?.fvar) };
+    return {
+      name: name ?? undefined,
+      sizeText,
+      isVariable: Boolean(font.tables?.fvar),
+      wghtRange: extractWghtRange(font),
+    };
   } catch {
     return {};
   }
@@ -146,6 +170,7 @@ async function refreshSlotInfo(slot: FontSlot) {
     if (info.sizeText) slot.sizeText = info.sizeText;
     // 无条件同步: 防止换字体后旧的可变标记残留
     slot.isVariable = Boolean(info.isVariable);
+    slot.wghtRange = info.wghtRange;
     renderSlots();
   } catch {
     // 忽略解析失败, 保持选择器返回的文件名
@@ -164,6 +189,7 @@ async function loadExistingFonts() {
     slot.fileName = info.name ?? file;
     if (info.sizeText) slot.sizeText = info.sizeText;
     slot.isVariable = Boolean(info.isVariable);
+    slot.wghtRange = info.wghtRange;
   }
   renderSlots();
 }
@@ -212,7 +238,7 @@ function renderSlots() {
           <div class="slot-name ${!slot.path ? 'placeholder' : ''} ${required ? 'required' : ''}">${nameText}</div>
           ${
             slot.path
-              ? `<div class="slot-meta"><span class="slot-meta-badge">${slot.sizeText || '…'}</span>${ext ? `<span class="slot-meta-badge">${ext}</span>` : ''}${slot.isVariable ? '<span class="slot-meta-badge slot-meta-badge--variable">可变字体</span>' : ''}</div>`
+              ? `<div class="slot-meta"><span class="slot-meta-badge">${slot.sizeText || '…'}</span>${ext ? `<span class="slot-meta-badge">${ext}</span>` : ''}${slot.isVariable ? `<span class="slot-meta-badge slot-meta-badge--variable">可变字体${slot.wghtRange ? ` ${slot.wghtRange}` : ''}</span>` : ''}</div>`
               : ''
           }
         </div>
@@ -640,7 +666,12 @@ async function loadTestFonts(): Promise<void> {
     hasFont('en') ? slotLabel('en') : hansLabel ? `回退 ${hansLabel}` : '未设置, 使用系统字体',
   );
   setTag('weight-tag', `使用 ${hansLabel ?? '系统字体'}`);
-  setTag('var-tag', `使用 ${hansLabel ?? '系统字体'}`);
+  // 可变字体提示: 若所选字体为可变字体, 显示 wght 轴范围
+  const varSlot = slots.hans.isVariable ? slots.hans : null;
+  setTag(
+    'var-tag',
+    `使用 ${hansLabel ?? '系统字体'}${varSlot?.wghtRange ? ` (可变字体 wght ${varSlot.wghtRange})` : ''}`,
+  );
 
   const setFamily = (id: string, family: string, fallback: string) => {
     const el = document.getElementById(id);

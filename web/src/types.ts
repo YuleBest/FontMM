@@ -7,4 +7,6 @@ export interface FontSlot {
   sizeText?: string;
   /** 是否为可变字体 (fvar 表存在), 异步获取 */
   isVariable?: boolean;
+  /** wght 轴范围 (如 "100-900"), 可变字体时有 */
+  wghtRange?: string;
 }

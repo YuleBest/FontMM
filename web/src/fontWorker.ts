@@ -26,9 +26,15 @@ def analyze(data):
         glyphs = f['maxp'].numGlyphs
         units = f['head'].unitsPerEm
         variable = 'fvar' in f
+        wght_range = None
+        if variable:
+            for a in f['fvar'].axes:
+                if a.axisTag == 'wght':
+                    wght_range = '%d-%d' % (round(a.minValue), round(a.maxValue))
+                    break
         return {'ok': True, 'family': family, 'subfamily': subfamily,
                 'glyphs': glyphs, 'units': units, 'variable': variable,
-                'names': read_all_names(f)}
+                'wghtRange': wght_range, 'names': read_all_names(f)}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 `;
@@ -288,6 +294,7 @@ self.onmessage = async (e: MessageEvent) => {
         glyphs: r.glyphs,
         units: r.units,
         variable: r.variable,
+        wghtRange: r.wghtRange,
         names: r.names,
         error: r.error,
       });
