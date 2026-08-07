@@ -1,123 +1,171 @@
-# FontMM
+<h1 align="center">FontMM</h1>
 
-FontMM 是一个用于在 ColorOS 设备上一键更换系统字体的 **Magisk / KernelSU 模块**，内置 WebUI 字体管理界面。
-
-只需在 WebUI 中挑选一个 `.ttf` 字体文件，点一下「应用字体」，重启即可生效——不需要在电脑上手动解压、改名、打包模块。
-
-> 当前为 v26 架构（WebUI + 统一 `apply.sh` 安装逻辑），旧版 v1.x 的「解压模板 → 放入 ttf → 运行打包脚本」流程已被取代。
+<div align="center">
+一个用于快速更换系统字体的 Magisk 模块，内置 WebUI 以及一些好用的功能
+</div>
 
 ## 特性
 
-- **内置 WebUI**：Material Design 3 风格的管理界面，在 KernelSU 管理器（或支持 WebUI 的 Root 管理器）中直接打开
-- **五槽位字体**：中文简体 / 中文繁体 / 英文与数字 / 等宽 / Emoji 分别独立设置
-- **智能回退**：繁体、英文未设置时自动回退到简体
-- **可视化文件选择器**：浏览设备目录、仅显示 `.ttf` 文件
-- **安装自检**：刷入时自动校验 ColorOS 版本、KernelSU 元模块、FontLoader 版本
-- **更新模式**：覆盖安装/更新模块时自动继承旧版模块中已设置的字体
-- **字重范围覆写**：可变字体 wght 范围与实际字重等级不符时（如 MiSansVF 150-700），可选择「裁切粗细等级」或「平均分配字重」两种方式覆写 `fonts.xml` 的 sans-serif 配置，保证 9 档字重均有正确映射（多槽位可变字体时自动取跨度最小者）
-- **补充字库**：内置 OFL/MIT 许可字体，兜底 CJK 扩展区、最新 Unicode 字符与小篆（Seal）等罕见字形
+- Material 风格的管理界面，在支持 WebUI 的 Root 管理器中直接打开
+- 多槽位字体分别选择，满足你的个性化需求
+- 可变字体 wght 范围与实际字重等级不符时可选择覆写配置，保证正确映射
+- 内置字库补充字体，兜底 CJK 扩展区、Unicode 18.0 全覆盖
 
 ## 支持环境
 
-| 项目      | 要求                                                                                      |
-| --------- | ----------------------------------------------------------------------------------------- |
-| 系统      | ColorOS 16.0+（检测 `ro.build.version.oplus.api` 与 `ro.build.version.oplusrom.display`） |
-| Root 环境 | Magisk 20.4+ / KernelSU（KernelSU ≥ 3.0.0 需先安装元模块）                                |
-| 推荐组件  | [FontLoader](https://github.com/KernelSU-Modules-Repo/fontloader) v1.2.3+（提升字体显示） |
-| 字体格式  | `.ttf`（支持可变字体）                                                                    |
-
-> 非 ColorOS 系统、ColorOS 版本低于 16 的设备会在安装时被 `customize.sh` 直接拒绝。
+| 项目      | 要求                      |
+| ------- | ----------------------- |
+| 系统      | >= ColorOS 16.0         |
+| Root 环境 | Magisk 20.4+ / KernelSU |
+| 字体格式    | `.ttf`                  |
 
 ## 安装
 
 ### 选择版本
 
-每个 Release 提供两个压缩包，区别仅在是否预置字体：
+每个 Release 提供两个压缩包，区别仅在于是否预置字体：
 
-| 版本                    | FONT 目录                                  | 适用场景                                                                    |
-| ----------------------- | ------------------------------------------ | --------------------------------------------------------------------------- |
-| `FontMM_*_preplace.zip` | 含预置简体字体 `FONTS/hans.ttf`（约 20MB） | **全新安装**：刷入后立即可用默认字体，随后可再在 WebUI 更换                 |
-| `FontMM_*_template.zip` | `FONTS/` 为空目录（约 3MB）                | **更新已有模块**：`customize.sh` 会自动从旧模块继承已设置的字体，包体积更小 |
+| 版本                 | FONT 目录                  | 适用场景                                            |
+| ------------------ | ------------------------ | ----------------------------------------------- |
+| `..._preplace.zip` | 含预置简体字体 `FONTS/hans.ttf` | **全新安装**：刷入后立即可用默认字体，随后可再在 WebUI 更换             |
+| `..._template.zip` | `FONTS/` 为空目录            | **更新已有模块**：`customize.sh` 会自动从旧模块继承已设置的字体，包体积更小 |
 
-选择建议：
+- **首次安装**：用 `_preplace` 版，开箱即用；如果用 `_template` 版，刷入前需先在 `FONT/` 至少放置简体字体 `hans.ttf`，否则 `apply.sh` 会报错并拒绝安装
+- **更新已安装的模块**：用 `_template` 版——更新模式会从旧模块的 `FONTS/` 目录继承已设置的字体，无需重新设置字体
 
-- **首次安装**：用 `_preplace` 版，开箱即用；如果用 `_template` 版，刷入后需先在 WebUI 设置简体字体，否则 `apply.sh` 会因缺少 `hans.ttf` 报错。
-- **更新已安装的模块**：用 `_template` 版——更新模式会从旧模块的 `FONTS/` 目录继承 `hans.ttf` / `hant.ttf` / `en.ttf` / `mono.ttf` / `emoji.ttf`，无需重新设置字体，也不浪费下载预置字体。
-- 在线更新（KernelSU 管理器检测到新版本时）走 `update.json`，其 `zipUrl` 指向 `_template` 版，行为同上。
+### KernelSU 及其分支版本
 
-### 安装步骤
+> KernelSU 的分支版本包括但不限于：SukiSU Ultra, KernelSU Next, ReSukiSU
 
-1. 按上述说明下载对应版本（`FontMM_v*.zip`）
-2. 在 KernelSU / Magisk 管理器中刷入该 zip（无需解压）
-3. 安装脚本自动完成系统检查与字体安装，日志会给出「成功 / 失败原因」
-4. **重启设备**
+#### 元模块
 
-## 使用
+如果您的 Root 管理器支持元模块，则必须预先安装一个有效的元模块，这样本模块才能成功挂载并生效，参见：[什么是元模块](https://kernelsu.org/zh_CN/guide/metamodule.html)。
 
-### 通过 WebUI 更换字体
+目前经过测试可以与本模块兼容的元模块有：
 
-1. 打开 KernelSU 管理器，进入 FontMM 模块，点击「打开 WebUI」
+- [mountify](https://github.com/backslashxx/mountify/releases)
+
+#### 管理器配置
+
+一般而言，如果你**正确安装了 Fontloader**，可以无需关闭「默认卸载模块」以及「卸载模块（内核级）」功能，**但我们始终建议关闭**，因为关闭后模块才能做到尽可能的全场景覆盖。
+
+若您选择不关闭「默认卸载模块」以及「卸载模块（内核级）」功能，则被卸载的应用可能会出现字体不生效的情况，此时您可以通过 App Profile 功能单独关闭该应用的「卸载模块」选项，并重启应用。
+
+### Magisk 及其分支版本
+
+#### WebUI 支持
+
+由于 Magisk 默认是不支持 WebUI 的，这意味着你需要安装一个外置的 WebUI 支持 App，比如：
+
+- [WebUI X Portable](https://github.com/MMRLApp/WebUI-X-Portable)
+
+- [KsuWebUI Standalone](https://github.com/5ec1cff/KsuWebUIStandalone)
+
+### 通用依赖
+
+#### Zygisk
+
+因为 Fontloader 依赖于 Zygisk 进行运行，所以你需要安装一个可用的 Zygisk 实现，例如：
+
+- [Zygisk Next](https://github.com/Dr-TSNG/ZygiskNext/releases)
+
+- [ReZygisk](https://github.com/PerformanC/ReZygisk/releases)
+
+**如果您选择使用 Zygisk Next，则还需要到其 WebUI 页面中将「排除列表策略」选项更改为「仅还原挂载」**。
+
+#### Fontloader
+
+**我们建议您在安装本模块前预先安装 Fontloader，否则可能出现应用闪退、开机卡第二屏、字体显示错误等严重错误**。
+
+从 Android 12 起，系统加载字体的方式变为了在 App 启动时按需加载，这会导致被管理器卸载模块的 App 找不到字体文件，从而崩溃，**包括 Android 系统 App**。Fontloader 就是用来解决这个问题的，它会在 App 尚未失去字体访问权限时为 App 预加载字体。
+
+由于 `RikkaW/FontLoader` 已经停更，推荐使用：
+
+- [aviraxp/fontloader](https://github.com/KernelSU-Modules-Repo/fontloader/releases)
+
+---
+
+## 使用方法
+
+### 通过 WebUI 更换字体（推荐）
+
+#### 基础配置
+
+1. 打开 KernelSU 或 WebUI 管理器，进入 FontMM 模块的 WebUI 界面，切换至「配置」页面
 2. 在槽位中分别选择字体：
-   - **中文简体**——必选
-   - **中文繁体**——可选，未选择时自动使用简体
-   - **英文 & 数字**——可选，未选择时自动使用简体
-   - **等宽字体**——可选，未选择时不覆盖系统等宽字体
-   - **Emoji 表情**——可选，未选择时使用系统默认 Emoji
-3. 点击「应用字体」，弹窗展示完整应用日志
-4. **重启设备**后生效
+   - **中文简体**：**必选**
+   - **中文繁体**：可选，未选择时自动使用简体
+   - **英文 & 数字**：可选，未选择时自动使用简体
+   - **等宽字体**：可选，未选择时不覆盖系统等宽字体
+   - **Emoji 表情**：可选，未选择时使用系统默认 Emoji
+3. 点击「应用字体」，重启设备后生效
 
-> **字重覆写**（可选）：当所选字体为可变字体且 wght 轴范围不满 100-900（如 MiSansVF 150-700）时，可在配置页「字重覆写模式」选择处理方式——**不处理**（默认，超出范围的字重由系统 clamp）/ **裁切粗细等级**（删除范围外的字重条目，交给系统 fallback）/ **平均分配字重**（保留 9 档，400 不变，两端按范围平均插值）。仅当已选择可变字体（中文/繁体/英文任一）时可用。
+#### 高级配置
 
-### 手动放置字体（可选）
+##### 字重覆写
+
+当所选字体为可变字体时，可在配置页「字重覆写模式」选择字重映射的处理方式：
+
+- **不处理**：默认，超出范围的字重由系统处理
+
+- **裁切粗细等级**：删除范围外的字重条目
+
+- **平均分配字重**：保留 9 档完整粗细，400 字重不变，两端按范围平均插值
+
+- **自定义映射**：可以自定义 1-1000 字重的映射关系
+
+### 手动放置字体
+
+> 字体的 Fallback 逻辑同上
 
 1. 把字体放入 `/data/adb/modules/FontMM/FONTS/`，命名规则：
-   - `hans.ttf`——中文简体（必选）
-   - `hant.ttf`——中文繁体（可选）
-   - `en.ttf`——英文与数字（可选）
-   - `mono.ttf`——等宽字体（可选）
-   - `emoji.ttf`——Emoji 表情（可选）
-2. 在 Root 管理器中点击本模块的「执行」（Action），或执行 `sh /data/adb/modules/FontMM/apply.sh`
+   - `hans.ttf`：中文简体（必选）
+   - `hant.ttf`：中文繁体（可选）
+   - `en.ttf`：英文与数字（可选）
+   - `mono.ttf`：等宽字体（可选）
+   - `emoji.ttf`：Emoji 表情（可选）
+2. 执行 `sh /data/adb/modules/FontMM/apply.sh`
 3. 重启设备
 
-## 字体映射
+---
 
-模块把 5 个用户字体槽位映射到 ColorOS 的系统字体文件：
+## 技术细节
 
-| 槽位        | 用户文件          | 覆盖的系统字体文件                                                                                                                 |
-| ----------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 中文简体    | `FONTS/hans.ttf`  | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`、`SysFont-Regular.ttf` |
-| 中文繁体    | `FONTS/hant.ttf`  | `SysSans-Hant-Regular.ttf`、`SysFont-Hant-Regular.ttf`                                                                             |
-| 英文 & 数字 | `FONTS/en.ttf`    | `SysSans-En-Regular.ttf`                                                                                                           |
-| 等宽字体    | `FONTS/mono.ttf`  | `DroidSansMono.ttf`（直接替换系统等宽字体；未设置时移除模块内该文件，恢复系统原字体）         |
-| Emoji 表情  | `FONTS/emoji.ttf` | `NotoColorEmoji.ttf`（直接替换系统 Emoji；未设置时从模块备份恢复默认，见下）                     |
+### 字体挂载
 
-**回退规则**：`hant.ttf` / `en.ttf` 缺失时对应槽位自动使用 `hans.ttf`；`hans.ttf` 缺失时 `apply.sh` 直接报错退出（WebUI 也会禁用「应用」按钮）。`mono.ttf` 未设置时**恢复**系统等宽字体（移除模块内 `DroidSansMono.ttf`，overlay 机制自动还原系统原文件）。`emoji.ttf` 未设置时**恢复**默认 Emoji（模块安装时已备份内嵌补充字库 `NotoColorEmoji.ttf` 到模块 `backup/`，清除槽位时自动还原；全新安装未设置时直接使用补充字库内嵌 Emoji）。
+模块把 5 个用户字体槽位挂载到系统字体文件：
 
-> 注意：等宽字体若不含中文字形，等宽区域的中文会按系统机制回退到中文字体（属正常 fallback）。如需等宽中文，请使用含中文字形的等宽字体（如 Sarasa、Maple Mono 等）。
+| 槽位       | 用户文件        | 挂载的系统字体文件                                                                                                                      | 回退逻辑（字体缺失时）         |
+| -------- | ----------- |:------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| 中文简体     | `hans.ttf`  | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`、`SysFont-Regular.ttf` | 拒绝安装和应用             |
+| 中文繁体     | `hant.ttf`  | `SysSans-Hant-Regular.ttf`、`SysFont-Hant-Regular.ttf`                                                                          | 使用中文简体字体 `hans.ttf` |
+| 英文 & 数字  | `en.ttf`    | `SysSans-En-Regular.ttf`                                                                                                       | 使用中文简体字体 `hans.ttf` |
+| 等宽字体     | `mono.ttf`  | `DroidSansMono.ttf`                                                                                                            | 不挂载                 |
+| Emoji 表情 | `emoji.ttf` | `NotoColorEmoji.ttf`                                                                                                           | 不挂载                 |
 
 ### 补充字库
 
-模块内置一组补充字体（OFL-1.1 / MIT 许可），作为 `fonts.xml` 末尾的全局 fallback，兜底用户字体与系统字体未覆盖的字形（CJK 扩展区生僻字、最新 Unicode 字符、小篆等）：
+模块内置一组 OFL-1.1 / MIT 许可的补充字体，作为 `fonts.xml` 末尾的全局 fallback，兜底用户字体与系统字体未覆盖的字形（CJK 扩展区生僻字、最新 Unicode 字符、小篆等）：
 
-| 字体                          | 说明                                                                                                                                                                                      |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PlangothicP1/P2.ttf`         | CJK 扩展区覆盖（Ext-B、G/H、**I、J** 等生僻字与新汉字）                                                                                                                                   |
+| 字体                            | 说明                                                                                                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PlangothicP1/P2.ttf`         | CJK 扩展区覆盖（Ext-B、G/H、**I、J** 等生僻字与新汉字）                                                                                                                           |
 | `PlanschriftSeal-Regular.ttf` | **Seal（小篆）区块 11328 字符全覆盖**（Unicode 18 新增，子集化 34M；MIT/OFL 双许可，源自 [Planschrift_Project](https://github.com/Fitzgerald-Porthmouth-Koenigsegg/Planschrift_Project)） |
-| `NotoSansPro.otf`             | 多 Noto 家族合并，覆盖广泛语言字形                                                                                                                                                        |
-| `Unicode16/17/18-new.ttf`     | Unicode 最新版本已定义字符覆盖                                                                                                                                                            |
-| `ZUno-Number.ttf`             | 保留符号 / 私用区未定义符号显示编码信息                                                                                                                                                   |
+| `NotoSansPro.otf`             | 多 Noto 家族合并，覆盖广泛语言字形                                                                                                                                            |
+| `Unicode16/17/18-new.ttf`     | Unicode 最新版本已定义字符覆盖                                                                                                                                             |
+| `ZUno-Number.ttf`             | 保留符号 / 私用区未定义符号显示编码信息                                                                                                                                           |
 
-补充字库不参与用户槽位替换（`SysFont*` / `SysSans*` 槽位规则不变），仅在缺字形时按顺序兜底。字体来源与许可详见模块内 `system/fonts/LICENSE-*` 及 [MakeFontsGreatAgain](https://github.com/Numbersf/MakeFontsGreatAgain) 的 LICENSES。
+补充字库不参与用户槽位替换，仅在缺字形时按顺序兜底。字体来源与许可详见模块内 `system/fonts/LICENSE-*` 及 [MakeFontsGreatAgain](https://github.com/Numbersf/MakeFontsGreatAgain) 的 LICENSES。
 
 ## 工作原理
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                     KernelSU 管理器                       │
-│    ┌──────────────────────────────┐                      │
-│    │  WebUI (web/ 构建产物)       │  ksu.exec / toast     │
-│    └──────────────┬───────────────┘                      │
-└───────────────────┼──────────────────────────────────────┘
+│                     KernelSU 管理器                     │
+│    ┌──────────────────────────────┐                     │
+│    │  WebUI (web/ 构建产物)       │  ksu.exec / toast   │
+│    └──────────────┬───────────────┘                     │
+└───────────────────┼─────────────────────────────────────┘
                     │ sh /data/adb/modules/FontMM/apply.sh
                     ▼
         ┌───────────────────────┐   cp -f     ┌──────────────────────┐
@@ -128,61 +176,26 @@ FontMM 是一个用于在 ColorOS 设备上一键更换系统字体的 **Magisk 
         └───────────────────────┘
 ```
 
-1. **安装阶段**（`customize.sh`）：系统检查（ColorOS 版本、KernelSU 元模块、FontLoader）→ 更新模式检测与旧字体继承 → 调用 `apply.sh` 完成首次字体安装。
-2. **换字体阶段**（WebUI）：选择文件 → 复制到 `FONTS/` → 调用同一个 `apply.sh`，两条路径行为一致。
-3. **`apply.sh` 核心逻辑**：按字体映射表把 `FONTS/` 中的字体复制到 `system/fonts/` 的对应文件，缺繁体/英文时回退简体。
-4. **字体生效**：ColorOS 通过 `/system/etc/fonts.xml` 等配置引用 `SysFont*` / `SysSans*` 字体族——模块内嵌从 ColorOS 16 提取的配置（`fonts.xml` 为唯一源，开发阶段自动生成 `fonts_base.xml` / `fonts_ule.xml` / `font_fallback.xml`），替换字体文件即可全局生效。
-
-## 项目结构
-
-```
-FontMM/
-├── src/                        # Magisk 模块源（打包时 zip 根 = 模块根）
-│   ├── module.prop             # 模块元信息（id/version/updateJson）
-│   ├── customize.sh            # 安装脚本：系统检查 + 更新模式 + 调用 apply.sh
-│   ├── apply.sh                # 字体应用脚本（安装 & WebUI 共用）
-│   ├── FONTS/                  # 用户字体目录（preplace 版含默认 hans.ttf）
-│   ├── META-INF/               # Magisk 安装入口（update-binary / updater-script）
-│   ├── system/
-│   │   ├── fonts/              # 字体槽位 + 补充字库（占位文件安装时被填充）
-│   │   └── etc/                # fonts.xml / fonts_base.xml / fonts_ule.xml / font_fallback.xml
-│   ├── system_ext/etc/         # system_ext 分区字体配置（fonts_base.xml / fonts_ule.xml）
-│   └── webroot/                # WebUI 构建产物（pnpm build 生成，不入库）
-├── web/                        # WebUI 前端源码（Vite + TypeScript）
-│   ├── index.html
-│   ├── vite.config.ts          # base './'，产物输出到 ../src/webroot
-│   └── src/
-│       ├── main.ts             # 主界面：字体槽位 + 应用 + 日志
-│       ├── fontPicker.ts       # 字体文件选择器
-│       ├── ksu.ts              # kernelsu API 封装（DEV 模式内置 mock）
-│       ├── theme.scss          # Material Design 3 主题变量
-│       └── style.scss          # 全局样式
-├── dev/                        # 开发脚本
-│   ├── cd.sh                   # 打包模块 zip（preplace / template 两版）→ dist/
-│   ├── ci.sh                   # shellcheck + shfmt 检查
-│   ├── webzip.sh               # 仅打包 WebUI 产物 → dist/webroot.zip
-│   ├── sync-fonts-xml.sh       # 以 fonts.xml 为唯一源生成派生字体配置
-│   ├── check-unicode-coverage.py # 本地模拟字体 fallback, 统计 Unicode 区块覆盖
-│   └── empty_font.sh           # 生成 0 字节占位字体
-├── package.json                # pnpm workspace 根
-├── web/package.json            # WebUI 依赖与脚本
-└── dist/                       # 打包产物（构建时生成，不入库）
-```
+1. **安装阶段**（`customize.sh`）：系统检查（ColorOS 版本、KernelSU 元模块、FontLoader）→ 更新模式检测与旧字体继承 → 调用 `apply.sh` 完成首次字体安装
+2. **换字体阶段**（WebUI）：选择文件 → 复制到 `FONTS/` → 调用同一个 `apply.sh`，两条路径行为一致
+3. **`apply.sh` 核心逻辑**：按字体映射表把 `FONTS/` 中的字体复制到 `system/fonts/` 的对应文件，缺繁体/英文时回退简体
+4. **字体生效**：ColorOS 通过 `/system/etc/fonts.xml` 等配置引用 `SysFont*` / `SysSans*` 字体族，模块内嵌从 ColorOS 16 提取的配置（`fonts.xml` 为唯一源，开发阶段自动生成 `fonts_base.xml` / `fonts_ule.xml` / `font_fallback.xml`），替换字体文件即可全局生效
 
 ## 开发指南
 
 ### 环境要求
 
 - Node.js ≥ 18 + [pnpm](https://pnpm.io/)
-- `zip` / `unzip`（打包）
+- `zip` / `unzip`
 - `shellcheck` + `shfmt`（仅 CI 检查需要）
-- Python 3 + fontTools（Unicode 覆盖测试）
-- Android 设备（Termux）或任意可运行 `ash` 的环境（验证 shell 脚本）
+- `Python 3` + `fontTools`（Unicode 覆盖测试）
+- `Golang`
+- 任意可运行 `ash` 的环境（验证 shell 脚本）
 
 ### 安装依赖
 
 ```bash
-pnpm install          # 根 workspace（会联动安装 web/）
+pnpm install && cd web && pnpm install
 ```
 
 ### 本地预览 WebUI
@@ -195,18 +208,11 @@ pnpm dev
 
 ### 构建与打包
 
+完整构建：
+
 ```bash
 pnpm build
 ```
-
-依次执行：
-
-1. `vite build`——把 WebUI 构建到 `src/webroot/`（相对路径，适配本地 WebView 加载）
-2. `bash dev/cd.sh`——读取 `src/module.prop` 的 `version` 字段，打包出两个版本（zip 根 = 模块根）：
-   - `dist/FontMM_v{VERSION}_preplace.zip`——含预置字体 `FONTS/hans.ttf`
-   - `dist/FontMM_v{VERSION}_template.zip`——`FONTS/` 为空目录
-
-   产物均校验内含 `module.prop`；template 版额外校验 `FONTS/` 下不含字体文件。打包前会自动同步派生字体 XML（`sync-fonts-xml.sh`）。
 
 单独构建 WebUI 产物（调试用）：
 
@@ -216,23 +222,23 @@ pnpm build:only-web      # 产出 dist/webroot.zip
 
 ### 代码检查
 
+> 前端 lint/format 由 [oxlint](https://oxc.rs/) 与 [oxfmt](https://oxc.rs/) 提供
+
 ```bash
-pnpm lint        # 前端 oxlint 检查 (web/src)
+pnpm lint        # 前端 oxlint 检查
 pnpm fmt         # 前端 oxfmt 格式化
 pnpm fmt:check   # 前端 oxfmt 格式检查
 bash dev/ci.sh   # src/ 下所有 .sh 的 shellcheck + shfmt 检查
 ```
 
-前端 lint/format 由 [oxlint](https://oxc.rs/) 与 [oxfmt](https://oxc.rs/) 提供。
-
 ### Unicode 覆盖测试
+
+> 本地模拟 `fonts.xml` 的 fallback 链，对照 Unicode Blocks.txt 统计每个区块覆盖率，首次运行会自动下载 Blocks.txt 缓存到 `dev/`
 
 ```bash
 python3 dev/check-unicode-coverage.py                        # 全部区块
 python3 dev/check-unicode-coverage.py "Archaic" "Seal"       # 只测指定区块
 ```
-
-本地模拟 `fonts.xml` 的 fallback 链（fontTools 读取 `src/system/fonts/` 各字体 cmap），对照 Unicode Blocks.txt 统计每个区块覆盖率（首次运行自动下载 Blocks.txt 缓存到 `dev/`）。
 
 ### 占位字体机制
 
@@ -245,26 +251,18 @@ python3 dev/check-unicode-coverage.py "Archaic" "Seal"       # 只测指定区�
 
 **Q：装完模块后字体没变？**
 
-A：先重启设备；确认系统是 ColorOS 16+；建议安装 [FontLoader](https://github.com/KernelSU-Modules-Repo/fontloader)（v1.2.3+）。
-
-**Q：KernelSU 3.0+ 装不上 / 报元模块错误？**
-
-A：KernelSU ≥ 3.0.0 需要先安装元模块（`/data/adb/metamodule/module.prop`），安装日志会明确提示。
+A：确认系统是 ColorOS 16+，并完成 [安装前的配置](#安装)，记得重启
 
 **Q：更新模块会丢失我设置好的字体吗？**
 
-A：不会。`customize.sh` 检测到已安装的 FontMM 时会进入更新模式，从旧模块的 `FONTS/` 目录继承 `hans.ttf` / `hant.ttf` / `en.ttf` / `mono.ttf` / `emoji.ttf`。
-
-**Q：`system/fonts/` 里的字体文件为什么是 0 字节？**
-
-A：那是占位文件，安装或应用字体时会被真实字体覆盖（见「占位字体机制」）。
-
-**Q：等宽字体设置了但不生效 / 显示成了简体字体？**
-
-A：确认已重启；等宽字体不含中文字形时，等宽区域的中文会按系统机制回退到中文字体（正常行为），请使用含中文的等宽字体（Sarasa、Maple Mono 等）。
+A：不会，检测到已安装的 FontMM 时会进入更新模式，从旧模块的 `FONTS/` 目录继承字体
 
 ## 致谢
 
-- 字体映射与配置文件参考 ColorOS 16 系统字体体系（`SysFont` / `SysSans` 字体族）
-- 补充字库与 `fonts.xml` fallback 结构参考 [MakeFontsGreatAgain](https://github.com/Numbersf/MakeFontsGreatAgain)（Unicode Latest 全覆盖思路）
-- WebUI 基于 [Material Web](https://github.com/material-components/material-web)（Material Design 3）与 [kernelsu](https://www.npmjs.com/package/kernelsu) SDK 构建
+- 字体映射与配置文件参考 ColorOS 16 系统字体体系
+- 补充字库与 `fonts.xml` fallback 结构参考 [MakeFontsGreatAgain](https://github.com/Numbersf/MakeFontsGreatAgain)
+- WebUI 基于 [Material Web](https://github.com/material-components/material-web)（Material Design 3）与 [kernelsu](https://www.npmjs.com/package/kernelsu) 构建
+
+## 许可
+
+[MIT License](./LICENSE)
