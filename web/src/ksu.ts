@@ -71,6 +71,14 @@ async function mockExec(command: string): Promise<ExecResult> {
   if (command.includes('apply.sh')) {
     return fake('[*] 安装: SysSans-Hans-Regular.ttf (模拟)\n[*] 全部完成, 重启后生效 (模拟)');
   }
+  // 字重覆写模式: cat 返回已选 '1' (裁切), echo 写入模拟成功
+  if (command.includes('wght-mode.txt')) {
+    return command.includes('echo') ? fake('') : slow('1');
+  }
+  // 覆写 fonts.xml: cp 模拟成功 (fetch work/fonts.xml 在 dev 下 404, 覆写被跳过, 不阻断应用)
+  if (command.includes('fonts.xml')) {
+    return slow('');
+  }
 
   // 元模块 (KernelSU 3.0+ 需要): 模拟已安装
   if (command.includes('metamodule')) {

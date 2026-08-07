@@ -29,6 +29,7 @@ import {
 } from './ksu';
 import { FontFilePicker } from './fontPicker';
 import { FontEditorToolDef, MiFontToolDef, ToolHost } from './tools';
+import { applyWghtMode } from './fontsXml';
 import type { FontSlot } from './types';
 import * as opentype from 'opentype.js';
 
@@ -72,6 +73,9 @@ const slots: Record<'hans' | 'hant' | 'en' | 'mono' | 'emoji', FontSlot> = {
 };
 
 const slotsEl = document.getElementById('slots')!;
+// 字重覆写模式选择 (声明提前: renderSlots 首轮调用会访问)
+const wghtModeSelect = document.getElementById('wght-mode-select') as any;
+const wghtModeSub = document.getElementById('wght-mode-sub');
 const applyBtn = document.getElementById('apply-btn') as HTMLButtonElement;
 const logDialog = document.getElementById('log-dialog') as any;
 const logContent = document.getElementById('log-content')!;
@@ -270,6 +274,7 @@ function renderSlots() {
     applyBtn.style.display = !slots.hans.path ? 'none' : '';
     applyBtn.disabled = applying;
   }
+  updateWghtModeDisabled();
 }
 
 async function copyFont(src: string, dest: string) {
@@ -277,11 +282,88 @@ async function copyFont(src: string, dest: string) {
   if (errno !== 0) throw new Error(`复制失败: ${stderr}`);
 }
 
+// 选择用于覆写的 wght 范围: 从 hans/hant/en 收集 (emoji/mono 除外), 取跨度最小者; 无可变返回 null
+function pickWghtRange(): { min: number; max: number } | null {
+  let best: { min: number; max: number } | null = null;
+  let bestSpan = Infinity;
+  for (const key of ['hans', 'hant', 'en'] as const) {
+    const r = slots[key]?.wghtRange;
+    if (!r) continue;
+    const m = r.match(/^(\d+)-(\d+)$/);
+    if (!m) continue;
+    const min = Number(m[1]);
+    const max = Number(m[2]);
+    const span = max - min;
+    if (span < bestSpan) {
+      bestSpan = span;
+      best = { min, max };
+    }
+  }
+  return best;
+}
+
+// 读取字重覆写模式 (FONTS/wght-mode.txt), 默认 0 不处理
+async function readWghtMode(): Promise<0 | 1 | 2> {
+  try {
+    const { errno, stdout } = await exec(`cat '${FONTS_DIR}/wght-mode.txt' 2>/dev/null || true`);
+    if (errno === 0) {
+      const n = Number(stdout.trim());
+      if (n === 1 || n === 2) return n as 0 | 1 | 2;
+    }
+  } catch {
+    // 忽略
+  }
+  return 0;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += btoa(String.fromCharCode(...bytes.subarray(i, i + 0x8000)));
+  }
+  return s;
+}
+
+// 覆写模块 fonts.xml 的 sans-serif family 段: cp -> fetch -> 字符串替换 -> base64 分块写回
+async function applyWghtOverride(mode: 1 | 2, min: number, max: number): Promise<void> {
+  const modXml = '/data/adb/modules/FontMM/system/etc/fonts.xml';
+  const tmp = `${WEBROOT_DIR}/work/fonts.new.xml`;
+  try {
+    await exec(
+      `mkdir -p '${WEBROOT_DIR}/work' && cp -f '${modXml}' '${WEBROOT_DIR}/work/fonts.xml'`,
+    );
+    const res = await fetch('work/fonts.xml');
+    if (!res.ok) throw new Error(`读取 fonts.xml 失败 (${res.status})`);
+    const xml = await res.text();
+    const replaced = applyWghtMode(xml, mode, min, max);
+    if (replaced === xml) return; // 无变化 (mode 0 或无 sans-serif family)
+    const b64 = bytesToBase64(new TextEncoder().encode(replaced));
+    await exec(`rm -f '${tmp}'`);
+    const CHUNK = 30000;
+    for (let i = 0; i < b64.length; i += CHUNK) {
+      const part = b64.slice(i, i + CHUNK);
+      await exec(`echo '${part}' | base64 -d >> '${tmp}'`);
+    }
+    await exec(`cp -f '${tmp}' '${modXml}'`);
+  } catch (e) {
+    // 覆写失败不阻断应用主流程
+    console.warn('字重范围覆写失败:', e);
+  }
+}
+
 async function apply() {
   if (!slots.hans.path) return;
   applying = true;
   renderSlots();
   try {
+    // 字重范围覆写: 用 UI 当前模式 (持久化到 FONTS/wght-mode.txt), 仅当存在可变字体且模式非 0 时处理
+    const wghtMode = (Number(wghtModeSelect?.value ?? 0) || 0) as 0 | 1 | 2;
+    await writeWghtMode(wghtMode);
+    const wghtPick = pickWghtRange();
+    if (wghtMode !== 0 && wghtPick) {
+      await applyWghtOverride(wghtMode, wghtPick.min, wghtPick.max);
+    }
+
     // 启动加载的字体 path 即 FONT/ 内的文件, 无需再复制
     if (slots.hans.path !== `${FONTS_DIR}/hans.ttf`) {
       await copyFont(slots.hans.path, `${FONTS_DIR}/hans.ttf`);
@@ -339,6 +421,41 @@ async function apply() {
 
 applyBtn?.addEventListener('click', apply);
 renderSlots();
+
+// ---------------- 字重覆写模式选择 ----------------
+
+// 写入模式到 FONTS/wght-mode.txt
+async function writeWghtMode(mode: 0 | 1 | 2): Promise<void> {
+  try {
+    await exec(`echo '${mode}' > '${FONTS_DIR}/wght-mode.txt'`);
+  } catch {
+    // 忽略写入失败
+  }
+}
+
+// 回填模式选择
+async function initWghtModeUI(): Promise<void> {
+  const mode = await readWghtMode();
+  if (wghtModeSelect) wghtModeSelect.value = String(mode);
+  updateWghtModeDisabled();
+}
+
+// 根据是否有可变字体决定是否禁用 (emoji/mono 不计入)
+function updateWghtModeDisabled(): void {
+  const hasVar = ['hans', 'hant', 'en'].some((k) => slots[k as 'hans']?.isVariable);
+  if (wghtModeSelect) wghtModeSelect.disabled = !hasVar;
+  if (wghtModeSub) {
+    wghtModeSub.textContent = hasVar
+      ? '可变字体 wght 范围与实际字重等级不符时, 按所选方式覆写 sans-serif 配置'
+      : '当前未选择可变字体 (中文/繁体/英文), 此功能不可用';
+  }
+}
+
+wghtModeSelect?.addEventListener('change', () => {
+  const v = Number(wghtModeSelect.value);
+  if (v === 0 || v === 1 || v === 2) void writeWghtMode(v as 0 | 1 | 2);
+});
+void initWghtModeUI();
 
 // ---------------- 导航与视图切换 ----------------
 const homeView = document.getElementById('home-view')!;

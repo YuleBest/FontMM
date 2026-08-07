@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@material/web": "^2.4.1",
+    "fast-xml-parser": "^5.10.1",
     "kernelsu": "^3.0.2",
     "material-symbols": "^0.28.0",
     "opentype.js": "^2.0.0",

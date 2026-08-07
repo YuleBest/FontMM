@@ -99,6 +99,21 @@
       <!-- 配置视图 -->
       <main id="config-view" class="view view-config">
         <div class="home-title">字体配置</div>
+
+        <div class="wght-mode-row">
+          <div class="wght-mode-info">
+            <div class="wght-mode-title">字重覆写模式</div>
+            <div class="wght-mode-sub" id="wght-mode-sub">
+              可变字体 wght 范围与实际字重等级不符时, 按所选方式覆写 sans-serif 配置
+            </div>
+          </div>
+          <md-outlined-select id="wght-mode-select" label="覆写模式">
+            <md-select-option value="0" selected>不处理</md-select-option>
+            <md-select-option value="1">裁切粗细等级</md-select-option>
+            <md-select-option value="2">平均分配字重</md-select-option>
+          </md-outlined-select>
+        </div>
+
         <div id="slots"></div>
       </main>
 
