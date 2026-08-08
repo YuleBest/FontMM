@@ -79,21 +79,104 @@ func GenerateFamily(min, max, mode int, customMap map[int]int) string {
 }
 
 // 在完整 XML 中替换 sans-serif family 段; 未找到或 mode 0 时原样返回
+// 通过深度计数匹配对应的 </family> (防止嵌套 family 误切), 并整行替换避免段首被重复缩进
 func ApplyWghtMode(xml string, mode, min, max int, customMap map[int]int) string {
 	if mode == 0 {
 		return xml
 	}
-	startTag := `<family name="sans-serif">`
-	start := strings.Index(xml, startTag)
+	const startTag = `<family name="sans-serif">`
+	start := findFamilyStart(xml, startTag)
 	if start < 0 {
 		return xml
 	}
-	end := strings.Index(xml[start:], "</family>")
+	end := matchFamilyClose(xml, start+len(startTag))
 	if end < 0 {
 		return xml
 	}
-	end += start + len("</family>")
-	return xml[:start] + GenerateFamily(min, max, mode, customMap) + xml[end:]
+	// 整行替换 (含行首缩进与闭合标签后的换行), 保持与原有段一致的缩进
+	lineStart := start
+	for lineStart > 0 && xml[lineStart-1] != '\n' {
+		lineStart--
+	}
+	lineEnd := end
+	for lineEnd < len(xml) && xml[lineEnd] != '\n' {
+		lineEnd++
+	}
+	if lineEnd < len(xml) {
+		lineEnd++ // 吃掉换行
+	}
+	return xml[:lineStart] + GenerateFamily(min, max, mode, customMap) + "\n" + xml[lineEnd:]
+}
+
+// 查找 startTag 的位置 (跳过 XML 注释, 避免误匹配注释内的文本)
+func findFamilyStart(xml, startTag string) int {
+	searchFrom := 0
+	for {
+		i := strings.Index(xml[searchFrom:], startTag)
+		if i < 0 {
+			return -1
+		}
+		i += searchFrom
+		open := strings.LastIndex(xml[:i], "<!--")
+		if open < 0 {
+			return i
+		}
+		if rel := strings.Index(xml[open:], "-->"); rel < 0 || open+rel+3 > i {
+			// 命中位置在注释内, 继续向后找
+			searchFrom = i + 1
+			continue
+		}
+		return i
+	}
+}
+
+// 从紧随 <family name="sans-serif"> 之后的位置开始, 找到配对的 </family> (含嵌套),
+// 返回其结束位置 (含标签); 未找到返回 -1
+func matchFamilyClose(xml string, start int) int {
+	depth := 1
+	i := start
+	for i < len(xml) {
+		// 跳过注释
+		if strings.HasPrefix(xml[i:], "<!--") {
+			if rel := strings.Index(xml[i:], "-->"); rel >= 0 {
+				i += rel + len("-->")
+				continue
+			}
+		}
+		// 找下一个 '<'
+		lt := strings.IndexByte(xml[i:], '<')
+		if lt < 0 {
+			return -1
+		}
+		i += lt
+		if strings.HasPrefix(xml[i:], "</family>") {
+			depth--
+			if depth == 0 {
+				return i + len("</family>")
+			}
+			i += len("</family>")
+			continue
+		}
+		if strings.HasPrefix(xml[i:], "<family") {
+			gt := strings.IndexByte(xml[i:], '>')
+			if gt < 0 {
+				return -1
+			}
+			// 自闭合 <family .../> 不增加嵌套深度
+			if xml[i+gt-1] != '/' {
+				depth++
+			}
+			i += gt + 1
+			continue
+		}
+		// 其他标签: 跳到 '>' 之后
+		gt := strings.IndexByte(xml[i:], '>')
+		if gt < 0 {
+			return -1
+		}
+		i += gt + 1
+	}
+	return -1
 }
 
 // 读取自定义映射文件 (每行 "weight axis")

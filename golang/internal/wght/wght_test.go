@@ -98,3 +98,62 @@ func TestApplyWghtMode(t *testing.T) {
 		t.Error("mode=0 应原样返回")
 	}
 }
+
+// 段内有嵌套 family (如 sans-serif-black) 时, 必须配对正确的 </family>,
+// 不能把嵌套段的闭合当成外层闭合导致尾部丢失 (曾导致无法开机)
+func TestApplyWghtModeNestedFamily(t *testing.T) {
+	xml := "<?xml version=\"1.0\"?>\n<familyset>\n" +
+		"    <!-- #ifdef OPLUS_FEATURE_FONT_FLIP -->\n" +
+		"    <family name=\"sans-serif\">\n" +
+		"        <family name=\"sans-serif-black\">\n" +
+		"            <font weight=\"900\" style=\"normal\">Black.ttf\n" +
+		"                <axis tag=\"wght\" stylevalue=\"900\" />\n" +
+		"            </font>\n" +
+		"        </family>\n" +
+		"        <font weight=\"100\" style=\"normal\">SysFont-Regular.ttf\n" +
+		"            <axis tag=\"wght\" stylevalue=\"100\" />\n" +
+		"        </font>\n" +
+		"    </family>\n" +
+		"    <!-- #endif -->\n" +
+		"    <family name=\"sans-serif-medium\">\n" +
+		"        <font weight=\"500\" style=\"normal\">Medium.ttf\n" +
+		"            <axis tag=\"wght\" stylevalue=\"500\" />\n" +
+		"        </font>\n" +
+		"    </family>\n" +
+		"</familyset>\n"
+	replaced := ApplyWghtMode(xml, 2, 150, 700, nil)
+	// 后续的 sans-serif-medium 段必须完整保留 (嵌套闭合误配会导致其被切掉)
+	if !strings.Contains(replaced, `<family name="sans-serif-medium">`) {
+		t.Fatal("覆写后丢失了 sans-serif-medium 段")
+	}
+	if strings.Contains(replaced, `<family name="sans-serif-black">`) {
+		t.Error("sans-serif-black 嵌套段未随段替换被移除")
+	}
+	// 闭合标签数量应与开始标签数量一致 (结构完整)
+	open := strings.Count(replaced, "<family ")
+	closeN := strings.Count(replaced, "</family>")
+	if open != closeN {
+		t.Errorf("family 标签不平衡: open=%d close=%d\n%s", open, closeN, replaced)
+	}
+	if !strings.HasSuffix(replaced, "</familyset>\n") {
+		t.Errorf("文件末尾被破坏:\n%s", replaced)
+	}
+}
+
+// 段首不应被重复缩进 (原行缩进 + 生成段自带缩进)
+func TestApplyWghtModeNoDoubleIndent(t *testing.T) {
+	xml := "<familyset>\n" +
+		"    <family name=\"sans-serif\">\n" +
+		"        <font weight=\"100\" style=\"normal\">SysFont-Regular.ttf\n" +
+		"            <axis tag=\"wght\" stylevalue=\"100\" />\n" +
+		"        </font>\n" +
+		"    </family>\n" +
+		"</familyset>\n"
+	replaced := ApplyWghtMode(xml, 1, 100, 900, nil)
+	if strings.Contains(replaced, "        <family name=\"sans-serif\">") {
+		t.Errorf("段首出现重复缩进 (8 空格):\n%s", replaced)
+	}
+	if !strings.Contains(replaced, "    <family name=\"sans-serif\">") {
+		t.Errorf("段首应为 4 空格缩进:\n%s", replaced)
+	}
+}

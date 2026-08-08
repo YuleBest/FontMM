@@ -107,7 +107,7 @@ const PIC_BASE = 'https://t17.market.mi-img.com/thumbnail/webp/w120q70/';
 export const MiFontToolDef: ToolDef = {
   id: 'mi-font',
   title: '下载国际版小米主题字体',
-  subtitle: '搜索并下载国际版主题商店的字体 (.mtz)',
+  subtitle: '搜索并下载国际版主题商店的字体',
   icon: 'download',
   version: '1.0.0',
   template: () => `
@@ -683,7 +683,7 @@ export const FontEditorToolDef: ToolDef = {
   title: '字体编辑',
   subtitle: '打开 ttf 字体, 缩放/偏移字形并导出 (实验性)',
   icon: 'edit',
-  version: '0.0.1',
+  version: '1.0.0',
   template: () => `
     <div class="view-topbar">
       <md-icon-button class="tool-page-back" aria-label="返回">

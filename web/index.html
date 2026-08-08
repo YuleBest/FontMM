@@ -50,9 +50,14 @@
           </div>
           <div class="home-entry-expand" id="donate-expand" hidden>
             <div class="home-donate-note">感谢您的自愿捐献</div>
-            <button class="home-donate-item" id="donate-alipay">
-              <span class="home-donate-logo">支付宝</span>
-            </button>
+            <div class="home-donate-row">
+              <button class="home-donate-item" id="donate-alipay">
+                <span class="home-donate-logo">支付宝</span>
+              </button>
+              <button class="home-donate-item" id="donate-ifdian">
+                <span class="home-donate-logo">爱发电</span>
+              </button>
+            </div>
           </div>
         </md-elevated-card>
 
@@ -100,36 +105,64 @@
       <main id="config-view" class="view view-config">
         <div class="home-title">字体配置</div>
 
-        <!-- 高级配置 -->
-        <md-elevated-card class="wght-advanced">
-          <div class="wght-advanced-title">高级配置</div>
+        <div id="slots"></div>
 
-          <div class="wght-mode-row">
-            <div class="wght-mode-info">
-              <div class="wght-mode-title">字重覆写模式</div>
-              <div class="wght-mode-sub" id="wght-mode-sub">
-                可变字体 wght 范围与实际字重等级不符时, 按所选方式覆写 sans-serif 配置
-              </div>
-            </div>
-            <md-outlined-select id="wght-mode-select" label="覆写模式">
-              <md-select-option value="0" selected>不处理</md-select-option>
-              <md-select-option value="1">裁切粗细等级</md-select-option>
-              <md-select-option value="2">平均分配字重</md-select-option>
-              <md-select-option value="3">自定义映射</md-select-option>
-            </md-outlined-select>
+        <!-- 高级配置 (可折叠/展开) -->
+        <md-filled-card class="wght-advanced">
+          <div class="wght-advanced-header" id="wght-advanced-header">
+            <div class="wght-advanced-title">高级配置</div>
+            <md-icon class="wght-advanced-arrow">expand_more</md-icon>
           </div>
 
-          <!-- 自定义字重映射 (模式=自定义映射时显示) -->
-          <div class="wght-map" id="wght-map" hidden>
-            <div class="wght-map-title">字重映射</div>
-            <div class="wght-map-sub">
-              设置每个字重等级对应的实际 wght 轴值 (字重等级 1-1000, 可增删)
+          <div class="wght-advanced-body">
+            <div class="wght-advanced-content">
+              <div class="wght-mode-row">
+                <div class="wght-mode-info">
+                  <div class="wght-mode-title">字重覆写模式</div>
+                  <div class="wght-mode-sub" id="wght-mode-sub">
+                    可变字体 wght 范围与实际字重等级不符时, 按所选方式覆写 sans-serif 配置
+                  </div>
+                </div>
+                <md-outlined-select id="wght-mode-select" label="覆写模式">
+                  <md-select-option value="0" selected>不处理</md-select-option>
+                  <md-select-option value="1">裁切粗细等级</md-select-option>
+                  <md-select-option value="2">平均分配字重</md-select-option>
+                  <md-select-option value="3">自定义映射</md-select-option>
+                </md-outlined-select>
+              </div>
+
+              <!-- 字重映射 (各模式实时预览, 修改即切为自定义) -->
+              <div class="wght-map" id="wght-map">
+                <div class="wght-map-inner">
+                  <div class="wght-map-title">字重映射</div>
+                  <div class="wght-map-sub">
+                    各模式的实时映射结果 (字重等级 → wght 轴值),
+                    修改任意值将自动切换为「自定义映射」
+                  </div>
+                  <div id="wght-map-rows"></div>
+                  <div class="wght-map-footer">
+                    <md-text-button id="wght-map-add" class="wght-map-add">
+                      <md-icon slot="icon">add</md-icon>
+                      新增映射
+                    </md-text-button>
+                    <div class="wght-map-toolbar">
+                      <md-icon-button id="wght-map-undo" aria-label="撤销">
+                        <md-icon>undo</md-icon>
+                      </md-icon-button>
+                      <md-icon-button id="wght-map-export" aria-label="导出映射">
+                        <md-icon>file_upload</md-icon>
+                      </md-icon-button>
+                      <md-icon-button id="wght-map-import" aria-label="导入映射">
+                        <md-icon>file_download</md-icon>
+                      </md-icon-button>
+                      <md-icon-button id="wght-map-reset" aria-label="重置映射">
+                        <md-icon>restart_alt</md-icon>
+                      </md-icon-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div id="wght-map-rows"></div>
-            <md-text-button id="wght-map-add" class="wght-map-add">
-              <md-icon slot="icon">add</md-icon>
-              新增映射
-            </md-text-button>
           </div>
 
           <!-- 新增字重映射对话框 -->
@@ -150,9 +183,25 @@
               <md-text-button id="wght-map-add-confirm">添加</md-text-button>
             </div>
           </md-dialog>
-        </md-elevated-card>
 
-        <div id="slots"></div>
+          <!-- 映射导入/导出对话框 (base64 JSON 文本) -->
+          <md-dialog id="wght-map-transfer-dialog">
+            <div slot="headline" id="wght-map-transfer-title">导出映射</div>
+            <div slot="content">
+              <div class="wght-map-transfer-note" id="wght-map-transfer-note"></div>
+              <textarea
+                id="wght-map-transfer-input"
+                class="wght-map-transfer-input"
+                rows="4"
+                spellcheck="false"
+              ></textarea>
+            </div>
+            <div slot="actions">
+              <md-text-button id="wght-map-transfer-cancel">取消</md-text-button>
+              <md-text-button id="wght-map-transfer-confirm">关闭</md-text-button>
+            </div>
+          </md-dialog>
+        </md-filled-card>
       </main>
 
       <!-- 字体测试视图 -->

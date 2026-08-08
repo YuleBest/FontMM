@@ -451,12 +451,19 @@ md-dialog {
       color: var(--md-sys-color-on-surface-variant);
     }
 
+    .home-donate-row {
+      display: flex;
+      gap: 12px;
+      padding: 0 20px 18px;
+    }
+
     .home-donate-item {
+      flex: 1;
       display: flex;
       align-items: center;
-      gap: 12px;
-      width: 100%;
-      padding: 12px 20px 18px calc(20px + 40px + 16px);
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 16px;
       border: none;
       background: transparent;
       cursor: pointer;
@@ -1144,22 +1151,74 @@ md-dialog {
 
 // ---- 字重覆写模式选择 ----
 
-// ---- 高级配置 (字重覆写 + 自定义映射) ----
+// ---- 高级配置 (字重覆写 + 自定义映射, 可折叠) ----
+// 与槽位卡片同为 filled-card 层级: 无阴影无边框
 .wght-advanced {
-  margin-bottom: 16px;
-  padding: 16px;
-  --md-elevated-card-container-shape: var(--md-shape-corner-large);
+  display: block;
+  padding: 12px;
+  overflow: hidden;
+  margin: 16px 0 0;
+  --md-filled-card-container-color: var(--md-sys-color-surface-container-low);
+  --md-filled-card-container-shape: var(--md-shape-corner-large);
+
+  .wght-advanced-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 0;
+    border-radius: var(--md-shape-corner-extra-small);
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
 
   .wght-advanced-title {
     font-size: var(--md-sys-typescale-title-medium-size);
     font-weight: var(--md-sys-typescale-title-medium-weight);
-    margin-bottom: 4px;
+  }
+
+  .wght-advanced-arrow {
+    flex-shrink: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    transition: transform var(--md-duration-emphasized) var(--md-easing-emphasized);
+  }
+
+  &.collapsed {
+    // 收起态压缩底部留白, 整卡只留标题一行
+    padding-bottom: 8px;
+
+    .wght-advanced-arrow {
+      transform: rotate(-90deg);
+    }
+
+    .wght-advanced-body {
+      grid-template-rows: 0fr;
+    }
+  }
+
+  // 折叠动画: grid-rows 0fr->1fr, 内容由 overflow:hidden 裁剪
+  // 注意: 内容必须包在单个子元素里, 否则多余子项落入隐式 auto 行, 0fr 无法收起
+  .wght-advanced-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows var(--md-duration-emphasized) var(--md-easing-emphasized);
+
+    > .wght-advanced-content {
+      min-height: 0;
+      overflow: hidden;
+    }
   }
 
   .wght-mode-row {
     display: flex;
     align-items: center;
     gap: 12px;
+    // 与标题的间距放在首行 padding 上: 收起后随 0fr 一并裁剪
+    padding-top: 8px;
 
     .wght-mode-info {
       flex: 1;
@@ -1184,9 +1243,12 @@ md-dialog {
   }
 
   .wght-map {
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid var(--md-sys-color-outline-variant);
+    .wght-map-inner {
+      // 与上方模式选择的分隔线及间距 (置于内层, 折叠时可一并收起)
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--md-sys-color-outline-variant);
+    }
 
     .wght-map-title {
       font-size: var(--md-sys-typescale-title-small-size);
@@ -1196,50 +1258,138 @@ md-dialog {
     .wght-map-sub {
       font-size: var(--md-sys-typescale-body-small-size);
       color: var(--md-sys-color-on-surface-variant);
-      margin-bottom: 8px;
+      margin-bottom: 4px;
+    }
+
+    // 映射行列表: 不设限高, 全部行平铺显示
+    #wght-map-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
     .wght-map-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 2px 0;
+      padding: 0;
 
       .wght-map-label {
         flex-shrink: 0;
-        width: 28px;
+        width: 24px;
         text-align: right;
         font-size: var(--md-sys-typescale-body-small-size);
         color: var(--md-sys-color-on-surface-variant);
       }
 
-      md-slider {
+      .wght-map-slider {
+        position: relative;
         flex: 1;
-        // 覆盖组件默认 min-inline-size: 200px, 适配手机窄屏
         min-inline-size: 64px;
         min-width: 64px;
       }
 
+      // 手势覆盖层: 覆盖滑条, 按下不立即跳值, 水平滑动才激活调整
+      .wght-map-slider-overlay {
+        position: absolute;
+        inset: 0;
+        touch-action: none;
+        cursor: pointer;
+      }
+
+      md-slider {
+        display: block;
+        width: 100%;
+        // 覆盖组件默认 min-inline-size: 200px, 适配手机窄屏
+        min-inline-size: 0;
+        min-width: 0;
+        pointer-events: none;
+        // 压缩滑块高度 (默认触控区 40px, 9 行时过长)
+        --md-slider-n: 28px;
+        --md-slider-handle-height: 16px;
+      }
+
+      .wght-map-diff {
+        flex-shrink: 0;
+        min-width: 34px;
+        text-align: right;
+        font-size: var(--md-sys-typescale-body-small-size);
+        font-family: monospace;
+        color: var(--md-sys-color-on-surface-variant);
+      }
+
       .wght-map-input {
         flex-shrink: 0;
-        width: 64px;
+        width: 56px;
+        padding: 2px 0 2px 4px;
+        font-size: var(--md-sys-typescale-body-small-size);
       }
 
       .wght-map-del {
         flex-shrink: 0;
-        width: 32px;
-        height: 32px;
-        --md-icon-button-state-layer-size: 32px;
+        width: 28px;
+        height: 28px;
+        --md-icon-button-state-layer-size: 28px;
 
         md-icon {
-          font-size: 18px;
+          font-size: 16px;
         }
       }
     }
 
-    .wght-map-add {
-      margin-top: 8px;
+    .wght-map-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+
+      .wght-map-add {
+        // 与按钮内联图标对齐
+        --md-text-button-icon-spacing: 4px;
+      }
+
+      .wght-map-toolbar {
+        display: flex;
+        gap: 2px;
+
+        md-icon-button {
+          // 与删除按钮同尺寸
+          width: 28px;
+          height: 28px;
+          --md-icon-button-state-layer-size: 28px;
+
+          md-icon {
+            font-size: 16px;
+          }
+        }
+      }
     }
+  }
+}
+
+// 映射转移对话框: 说明文本 + base64 文本框
+.wght-map-transfer-note {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  margin-bottom: 8px;
+}
+
+.wght-map-transfer-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  font-family: monospace;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+
+  &:focus {
+    border-color: var(--md-sys-color-primary);
   }
 }
 
