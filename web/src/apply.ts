@@ -1,5 +1,5 @@
 import { exec, shellQuote, toast } from './ksu';
-import { copyFont, pickWghtRange, renderSlots, slots } from './slots';
+import { copyFont, pickWghtRange, renderSlots, setApplying, slots } from './slots';
 import { applyWghtOverride, getSelectedWghtMode, writeWghtMode } from './wght';
 import { invalidateTestFonts } from './testFonts';
 import { applyBtn } from './dom';
@@ -14,7 +14,7 @@ document.getElementById('log-close')?.addEventListener('click', () => {
 
 async function apply() {
   if (!slots.hans.path) return;
-  applyBtn.disabled = true;
+  setApplying(true);
   renderSlots();
   try {
     // 字重范围覆写: 用 UI 当前模式 (持久化到 FONTS/wght-mode.txt), 仅当存在可变字体且模式非 0 时处理
@@ -76,7 +76,7 @@ async function apply() {
   } catch (e) {
     toast(`应用失败: ${String(e)}`);
   } finally {
-    applyBtn.disabled = false;
+    setApplying(false);
     renderSlots();
   }
 }

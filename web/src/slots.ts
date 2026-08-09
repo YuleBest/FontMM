@@ -49,6 +49,12 @@ const wghtModeSub = document.getElementById('wght-mode-sub');
 
 let pickingKey: SlotKey = 'hans';
 
+// 应用流程进行中: renderSlots 据此禁用/启用应用按钮
+export let applying = false;
+export function setApplying(v: boolean): void {
+  applying = v;
+}
+
 const picker = new FontFilePicker((path, name) => {
   const slot = slots[pickingKey];
   slot.path = path;
@@ -140,8 +146,9 @@ export function renderSlots() {
   });
 
   if (applyBtn) {
-    // 未选择简体字体时直接隐藏按钮 (不做半透明禁用)
+    // 未选择简体字体时直接隐藏按钮 (不做半透明禁用); 应用过程中禁用
     applyBtn.style.display = !slots.hans.path ? 'none' : '';
+    applyBtn.disabled = applying;
   }
   updateWghtModeDisabled();
   // 通知其他模块 (如字重映射预览) 槽位已变化
