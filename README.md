@@ -17,22 +17,24 @@
 
 ## 支持环境
 
-| 项目      | 要求                      |
-| ------- | ----------------------- |
+| 项目      | 要求                    |
+| --------- | ----------------------- |
 | 系统      | >= ColorOS 16.0         |
 | Root 环境 | Magisk 20.4+ / KernelSU |
-| 字体格式    | `.ttf`                  |
+| 字体格式  | `.ttf`                  |
 
 ## 安装
+
+> 安装完成后，请在系统设置中选择 Roboto 作为字体，这样才能得到正确的字重映射！
 
 ### 选择版本
 
 每个 Release 提供两个压缩包，区别仅在于是否预置字体：
 
-| 版本                 | FONT 目录                  | 适用场景                                            |
-| ------------------ | ------------------------ | ----------------------------------------------- |
-| `..._preplace.zip` | 含预置简体字体 `FONTS/hans.ttf` | **全新安装**：刷入后立即可用默认字体，随后可再在 WebUI 更换             |
-| `..._template.zip` | `FONTS/` 为空目录            | **更新已有模块**：`customize.sh` 会自动从旧模块继承已设置的字体，包体积更小 |
+| 版本               | FONT 目录                       | 适用场景                                                                    |
+| ------------------ | ------------------------------- | --------------------------------------------------------------------------- |
+| `..._preplace.zip` | 含预置简体字体 `FONTS/hans.ttf` | **全新安装**：刷入后立即可用默认字体，随后可再在 WebUI 更换                 |
+| `..._template.zip` | `FONTS/` 为空目录               | **更新已有模块**：`customize.sh` 会自动从旧模块继承已设置的字体，包体积更小 |
 
 - **首次安装**：用 `_preplace` 版，开箱即用；如果用 `_template` 版，刷入前需先在 `FONT/` 至少放置简体字体 `hans.ttf`，否则 `apply.sh` 会报错并拒绝安装
 - **更新已安装的模块**：用 `_template` 版——更新模式会从旧模块的 `FONTS/` 目录继承已设置的字体，无需重新设置字体
@@ -72,8 +74,6 @@
 因为 Fontloader 依赖于 Zygisk 进行运行，所以你需要安装一个可用的 Zygisk 实现，例如：
 
 - [Zygisk Next](https://github.com/Dr-TSNG/ZygiskNext/releases)
-
-- [ReZygisk](https://github.com/PerformanC/ReZygisk/releases)
 
 **如果您选择使用 Zygisk Next，则还需要到其 WebUI 页面中将「排除列表策略」选项更改为「仅还原挂载」**。
 
@@ -139,25 +139,25 @@
 
 模块把 5 个用户字体槽位挂载到系统字体文件：
 
-| 槽位       | 用户文件        | 挂载的系统字体文件                                                                                                                      | 回退逻辑（字体缺失时）         |
-| -------- | ----------- |:------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
-| 中文简体     | `hans.ttf`  | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`、`SysFont-Regular.ttf` | 拒绝安装和应用             |
-| 中文繁体     | `hant.ttf`  | `SysSans-Hant-Regular.ttf`、`SysFont-Hant-Regular.ttf`                                                                          | 使用中文简体字体 `hans.ttf` |
-| 英文 & 数字  | `en.ttf`    | `SysSans-En-Regular.ttf`                                                                                                       | 使用中文简体字体 `hans.ttf` |
-| 等宽字体     | `mono.ttf`  | `DroidSansMono.ttf`                                                                                                            | 不挂载                 |
-| Emoji 表情 | `emoji.ttf` | `NotoColorEmoji.ttf`                                                                                                           | 不挂载                 |
+| 槽位        | 用户文件    | 挂载的系统字体文件                                                                                                                 | 回退逻辑（字体缺失时）      |
+| ----------- | ----------- | :--------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| 中文简体    | `hans.ttf`  | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`、`SysFont-Regular.ttf` | 拒绝安装和应用              |
+| 中文繁体    | `hant.ttf`  | `SysSans-Hant-Regular.ttf`、`SysFont-Hant-Regular.ttf`                                                                             | 使用中文简体字体 `hans.ttf` |
+| 英文 & 数字 | `en.ttf`    | `SysSans-En-Regular.ttf`                                                                                                           | 使用中文简体字体 `hans.ttf` |
+| 等宽字体    | `mono.ttf`  | `DroidSansMono.ttf`                                                                                                                | 不挂载                      |
+| Emoji 表情  | `emoji.ttf` | `NotoColorEmoji.ttf`                                                                                                               | 不挂载                      |
 
 ### 补充字库
 
 模块内置一组 OFL-1.1 / MIT 许可的补充字体，作为 `fonts.xml` 末尾的全局 fallback，兜底用户字体与系统字体未覆盖的字形（CJK 扩展区生僻字、最新 Unicode 字符、小篆等）：
 
-| 字体                            | 说明                                                                                                                                                              |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PlangothicP1/P2.ttf`         | CJK 扩展区覆盖（Ext-B、G/H、**I、J** 等生僻字与新汉字）                                                                                                                           |
+| 字体                          | 说明                                                                                                                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PlangothicP1/P2.ttf`         | CJK 扩展区覆盖（Ext-B、G/H、**I、J** 等生僻字与新汉字）                                                                                                                                   |
 | `PlanschriftSeal-Regular.ttf` | **Seal（小篆）区块 11328 字符全覆盖**（Unicode 18 新增，子集化 34M；MIT/OFL 双许可，源自 [Planschrift_Project](https://github.com/Fitzgerald-Porthmouth-Koenigsegg/Planschrift_Project)） |
-| `NotoSansPro.otf`             | 多 Noto 家族合并，覆盖广泛语言字形                                                                                                                                            |
-| `Unicode16/17/18-new.ttf`     | Unicode 最新版本已定义字符覆盖                                                                                                                                             |
-| `ZUno-Number.ttf`             | 保留符号 / 私用区未定义符号显示编码信息                                                                                                                                           |
+| `NotoSansPro.otf`             | 多 Noto 家族合并，覆盖广泛语言字形                                                                                                                                                        |
+| `Unicode16/17/18-new.ttf`     | Unicode 最新版本已定义字符覆盖                                                                                                                                                            |
+| `ZUno-Number.ttf`             | 保留符号 / 私用区未定义符号显示编码信息                                                                                                                                                   |
 
 补充字库不参与用户槽位替换，仅在缺字形时按顺序兜底。字体来源与许可详见模块内 `system/fonts/LICENSE-*` 及 [MakeFontsGreatAgain](https://github.com/Numbersf/MakeFontsGreatAgain) 的 LICENSES。
 
