@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v26.8.0-beta.5
 
 - **修复中文字体完全覆盖西文字体**（issue #6）：`SysFont-Regular.ttf` 改为英文槽位填充（未设置英文时仍回退简体），不再被中文字体占用，西文字形可正常显示
 - **字重覆写覆盖全部生效家族**（issue #7）：不再只改 `sans-serif`，同时覆写 `sys-sans-en` / `zh-Hans` / `zh-Hant` 家族，保证中英文一致映射
