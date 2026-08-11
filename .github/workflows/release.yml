@@ -34,9 +34,17 @@ jobs:
       - name: Pack module (preplace / template)
         run: bash dev/cd.sh
 
+      - name: Generate SHA256 checksums
+        run: |
+          for f in dist/*.zip; do
+            sha256sum "$f" > "$f.sha256"
+          done
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: |
+            dist/*.zip
+            dist/*.zip.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

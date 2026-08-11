@@ -1,5 +1,6 @@
-// fontmm-wght: 覆写模块字体配置 XML 的 sans-serif family 字重范围
-// 用法: fontmm-wght -mode 0|1|2|3 [-min N] [-max N] [-map <wght-map.txt>] [-xml-dir <模块根>]
+// fontmm-wght: 覆写模块字体配置 XML 各生效 family 的字重范围
+// 用法: fontmm-wght -mode 0|1|2|3 [-min N] [-max N] [-map <wght-map.txt>] [-xml-dir <模块根>] [-sync]
+// 说明: 只修改主配置 system/etc/fonts.xml, 加 -sync 后复制到各派生配置 (issue #7)
 package main
 
 import (
@@ -16,12 +17,8 @@ func main() {
 	max := flag.Int("max", 900, "裁切/平均最大字重")
 	mapPath := flag.String("map", "", "自定义映射文件 (mode 3): 每行 'weight axis'")
 	xmlDir := flag.String("xml-dir", "/data/adb/modules/FontMM", "模块根目录 (含 system/etc/fonts.xml)")
+	sync := flag.Bool("sync", false, "覆写后复制 fonts.xml 到各派生配置")
 	flag.Parse()
-
-	if *mode == 0 {
-		fmt.Println("[-] mode 0: 不处理")
-		return
-	}
 
 	var customMap map[int]int
 	if *mode == 3 {
@@ -36,10 +33,10 @@ func main() {
 		}
 	}
 
-	changed, err := wght.ApplyToDir(*xmlDir, *mode, *min, *max, customMap)
+	changed, err := wght.ApplyToDir(*xmlDir, *mode, *min, *max, customMap, *sync)
 	if err != nil {
 		fmt.Printf("[x] %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("[✓] 完成, 共覆写 %d 个文件\n", changed)
+	fmt.Printf("[✓] 完成, 共处理 %d 个文件\n", changed)
 }

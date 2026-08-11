@@ -64,12 +64,12 @@ async function readWghtMode(): Promise<WghtMode> {
   return 0;
 }
 
-// 覆写字体配置: 调用模块内置 Go 程序 fontmm-wght (本地读写全部 6 个 XML, 无命令长度限制)
+// 覆写字体配置: 调用模块内置 Go 程序 fontmm-wght (只改 fonts.xml, 再 -sync 到各派生配置)
 export async function applyWghtOverride(mode: 1 | 2 | 3, min: number, max: number): Promise<void> {
   const mapArg = mode === 3 ? ` -map '${FONTS_DIR}/wght-map.txt'` : '';
   // 日志写到 FONTS/wght-apply.log 方便真机排查; 先 chmod +x 保证可执行
   const logFile = `${FONTS_DIR}/wght-apply.log`;
-  const cmd = `chmod +x '${WGHT_BIN}' 2>/dev/null; '${WGHT_BIN}' -mode ${mode} -min ${min} -max ${max}${mapArg} > '${logFile}' 2>&1`;
+  const cmd = `chmod +x '${WGHT_BIN}' 2>/dev/null; '${WGHT_BIN}' -mode ${mode} -min ${min} -max ${max}${mapArg} -sync > '${logFile}' 2>&1`;
   try {
     const { errno } = await exec(cmd);
     // 读取并回显执行日志 (同时 console 输出供排查)

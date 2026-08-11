@@ -4,6 +4,8 @@ package wght
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,9 +14,39 @@ import (
 // 标准 9 档字重
 var Weights = []int{100, 200, 300, 400, 500, 600, 700, 800, 900}
 
-// 模块内需要覆写的字体配置 XML (相对模块根)
-var XMLRelPaths = []string{
-	"system/etc/fonts.xml",
+// axisStyle 描述家族内 <font> 条目的轴配置风格
+type axisStyle int
+
+const (
+	// axisFull: sans-serif 全轴 (ital/wdth/wght)
+	axisFull axisStyle = iota
+	// axisWghtOnly: sys-sans-en / zh-* 仅 wght 轴
+	axisWghtOnly
+)
+
+// familySpec 描述一个需要覆写字重的家族及其条目格式
+type familySpec struct {
+	openTag       string // 家族起始标签 (用于定位与生成)
+	fontFile      string // 家族引用的字体文件
+	postScript    string // postScriptName 属性 (无则为空)
+	serifFallback bool   // 是否包含 fallbackFor="serif" 的 400 条目 (zh-Hans/zh-Hant)
+	axis          axisStyle
+}
+
+// 所有生效家族: 英文 (sans-serif / sys-sans-en) 与中文 (zh-Hans / zh-Hant) 都要覆盖,
+// 否则中文或英文单独使用时字重映射不生效 (issue #7)
+var FamilySpecs = []familySpec{
+	{openTag: `<family name="sans-serif">`, fontFile: "SysFont-Regular.ttf", axis: axisFull},
+	{openTag: `<family name="sys-sans-en">`, fontFile: "SysSans-En-Regular.ttf", postScript: "OPlusSansEn", axis: axisWghtOnly},
+	{openTag: `<family lang="zh-Hans">`, fontFile: "SysSans-Hans-Regular.ttf", postScript: "OPPO_Sans_4.0_SC", serifFallback: true, axis: axisWghtOnly},
+	{openTag: `<family lang="zh-Hant,zh-Bopo">`, fontFile: "SysSans-Hant-Regular.ttf", postScript: "OPPO_Sans_4.0_TC", serifFallback: true, axis: axisWghtOnly},
+}
+
+// 主配置文件名 (唯一源)
+const SourceXMLRel = "system/etc/fonts.xml"
+
+// 派生配置 (与 fonts.xml 内容一致, 由 -sync 复制生成)
+var DerivedXMLRel = []string{
 	"system/etc/fonts_base.xml",
 	"system/etc/fonts_ule.xml",
 	"system/etc/font_fallback.xml",
@@ -33,65 +65,83 @@ func AveragedAxis(min, max, w int) int {
 	return 400 + (max-400)*(w-400)/500
 }
 
-// 生成单条 <font> 条目 (缩进与现有 fonts.xml 一致)
-func fontEntry(weight, axisWght int) string {
-	return fmt.Sprintf(`        <font weight="%d" style="normal">SysFont-Regular.ttf
+// 生成 sans-serif 家族段 (mode 1/2/3), 使用标准 9 档字重
+func GenerateFamily(min, max, mode int, customMap map[int]int) string {
+	return generateFamily(FamilySpecs[0], Weights, min, max, mode, customMap)
+}
+
+// 生成单条 <font> 条目 (按家族风格)
+func fontEntryFor(spec familySpec, weight, axisWght int) string {
+	if spec.axis == axisFull {
+		return fmt.Sprintf(`        <font weight="%d" style="normal">%s
             <axis tag="ital" stylevalue="0" />
             <axis tag="wdth" stylevalue="100" />
             <axis tag="wght" stylevalue="%d" />
-        </font>`, weight, axisWght)
+        </font>`, weight, spec.fontFile, axisWght)
+	}
+	return fmt.Sprintf(`        <font weight="%d" style="normal"  postScriptName="%s" >%s
+            <axis tag="wght" stylevalue="%d"/>
+        </font>`, weight, spec.postScript, spec.fontFile, axisWght)
 }
 
-// 生成 sans-serif family 段
-// mode 1=裁切 (weight ∈ [min,max]) 2=平均 (全保留, axis 插值) 3=自定义映射 (1-1000 任意)
-func GenerateFamily(min, max, mode int, customMap map[int]int) string {
-	var lines []string
+// 生成 zh-Hans/zh-Hant 家族的 fallbackFor="serif" 400 条目
+func serifEntry(spec familySpec) string {
+	return fmt.Sprintf(`        <font weight="400" style="normal" fallbackFor="serif"
+            postScriptName="%s">%s
+        </font>`, spec.postScript, spec.fontFile)
+}
+
+// 生成家族段 (mode 1=裁切 2=平均 3=自定义映射)
+// weights 为声明字重集 (取自原家族, 保持设备 XML 一致性)
+func generateFamily(spec familySpec, weights []int, min, max, mode int, customMap map[int]int) string {
+	ws := weights
 	if mode == 3 && len(customMap) > 0 {
-		ws := make([]int, 0, len(customMap))
+		ws = make([]int, 0, len(customMap))
 		for w := range customMap {
 			ws = append(ws, w)
 		}
 		sort.Ints(ws)
-		for _, w := range ws {
-			lines = append(lines, fontEntry(w, customMap[w]))
+	}
+	var lines []string
+	for _, w := range ws {
+		if mode == 1 && (w < min || w > max) {
+			continue
 		}
-	} else {
-		for _, w := range Weights {
-			if mode == 1 && (w < min || w > max) {
-				continue
-			}
-			var axis int
-			if mode == 3 {
-				if v, ok := customMap[w]; ok {
-					axis = v
-				} else {
-					axis = AveragedAxis(min, max, w)
-				}
-			} else if mode == 2 {
-				axis = AveragedAxis(min, max, w)
+		axis := w
+		if mode == 2 {
+			axis = AveragedAxis(min, max, w)
+		} else if mode == 3 {
+			if v, ok := customMap[w]; ok {
+				axis = v
 			} else {
-				axis = w
+				axis = AveragedAxis(min, max, w)
 			}
-			lines = append(lines, fontEntry(w, axis))
+		}
+		lines = append(lines, fontEntryFor(spec, w, axis))
+		if spec.serifFallback && w == 400 {
+			lines = append(lines, serifEntry(spec))
 		}
 	}
-	return "    <family name=\"sans-serif\">\n" + strings.Join(lines, "\n") + "\n    </family>"
+	return "    " + spec.openTag + "\n" + strings.Join(lines, "\n") + "\n    </family>"
 }
 
-// 在完整 XML 中替换 sans-serif family 段; 未找到或 mode 0 时原样返回
-// 通过深度计数匹配对应的 </family> (防止嵌套 family 误切), 并整行替换避免段首被重复缩进
-func ApplyWghtMode(xml string, mode, min, max int, customMap map[int]int) string {
-	if mode == 0 {
-		return xml
-	}
-	const startTag = `<family name="sans-serif">`
-	start := findFamilyStart(xml, startTag)
+// 在完整 XML 中覆写指定家族段; 家族不存在时原样返回
+func replaceFamily(xml string, spec familySpec, mode, min, max int, customMap map[int]int) string {
+	start := findFamilyStart(xml, spec.openTag)
 	if start < 0 {
 		return xml
 	}
-	end := matchFamilyClose(xml, start+len(startTag))
+	end := matchFamilyClose(xml, start+len(spec.openTag))
 	if end < 0 {
 		return xml
+	}
+	// 字重集选择: 裁切保留原家族声明字重 (兼容设备 XML), 平均分配固定 9 档完整粗细,
+	// 自定义映射由映射文件的键决定
+	weights := Weights
+	if mode == 1 {
+		if ex := extractWeights(xml[start:end]); len(ex) > 0 {
+			weights = ex
+		}
 	}
 	// 整行替换 (含行首缩进与闭合标签后的换行), 保持与原有段一致的缩进
 	lineStart := start
@@ -105,7 +155,19 @@ func ApplyWghtMode(xml string, mode, min, max int, customMap map[int]int) string
 	if lineEnd < len(xml) {
 		lineEnd++ // 吃掉换行
 	}
-	return xml[:lineStart] + GenerateFamily(min, max, mode, customMap) + "\n" + xml[lineEnd:]
+	return xml[:lineStart] + generateFamily(spec, weights, min, max, mode, customMap) + "\n" + xml[lineEnd:]
+}
+
+// 覆写全部生效家族 (mode 0 原样返回)
+func ApplyWghtMode(xml string, mode, min, max int, customMap map[int]int) string {
+	if mode == 0 {
+		return xml
+	}
+	result := xml
+	for _, spec := range FamilySpecs {
+		result = replaceFamily(result, spec, mode, min, max, customMap)
+	}
+	return result
 }
 
 // 查找 startTag 的位置 (跳过 XML 注释, 避免误匹配注释内的文本)
@@ -130,7 +192,7 @@ func findFamilyStart(xml, startTag string) int {
 	}
 }
 
-// 从紧随 <family name="sans-serif"> 之后的位置开始, 找到配对的 </family> (含嵌套),
+// 从紧随 <family ...> 之后的位置开始, 找到配对的 </family> (含嵌套),
 // 返回其结束位置 (含标签); 未找到返回 -1
 func matchFamilyClose(xml string, start int) int {
 	depth := 1
@@ -179,6 +241,22 @@ func matchFamilyClose(xml string, start int) int {
 	return -1
 }
 
+var weightRe = regexp.MustCompile(`<font weight="(\d+)"`)
+
+// 提取家族段内声明字重 (去重并升序), 保留设备 XML 的字重集
+func extractWeights(block string) []int {
+	var ws []int
+	seen := map[int]bool{}
+	for _, m := range weightRe.FindAllStringSubmatch(block, -1) {
+		if n, err := strconv.Atoi(m[1]); err == nil && !seen[n] {
+			ws = append(ws, n)
+			seen[n] = true
+		}
+	}
+	sort.Ints(ws)
+	return ws
+}
+
 // 读取自定义映射文件 (每行 "weight axis")
 func ReadCustomMap(path string) (map[int]int, error) {
 	m := map[int]int{}
@@ -204,26 +282,37 @@ func ReadCustomMap(path string) (map[int]int, error) {
 	return m, nil
 }
 
-// ApplyToDir 覆写模块根目录下的全部字体配置 XML, 返回覆写文件数
-func ApplyToDir(xmlDir string, mode, min, max int, customMap map[int]int) (int, error) {
+// ApplyToDir 覆写模块根目录下的主配置 fonts.xml; sync 为 true 时复制到各派生配置
+// 返回覆写/同步的文件总数
+func ApplyToDir(xmlDir string, mode, min, max int, customMap map[int]int, sync bool) (int, error) {
+	src := filepath.Join(xmlDir, SourceXMLRel)
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return 0, fmt.Errorf("读取 %s 失败: %w", SourceXMLRel, err)
+	}
+	replaced := ApplyWghtMode(string(data), mode, min, max, customMap)
 	changed := 0
-	for _, rel := range XMLRelPaths {
-		p := xmlDir + "/" + rel
-		data, err := os.ReadFile(p)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "[-] 跳过 %s: %v\n", rel, err)
-			continue
-		}
-		replaced := ApplyWghtMode(string(data), mode, min, max, customMap)
-		if replaced == string(data) {
-			fmt.Printf("[-] 无变化: %s\n", rel)
-			continue
-		}
-		if err := os.WriteFile(p, []byte(replaced), 0o644); err != nil {
-			return changed, fmt.Errorf("写入失败 %s: %w", rel, err)
+	if replaced != string(data) {
+		if err := os.WriteFile(src, []byte(replaced), 0o644); err != nil {
+			return changed, fmt.Errorf("写入失败 %s: %w", SourceXMLRel, err)
 		}
 		changed++
-		fmt.Printf("[✓] 已覆写: %s\n", rel)
+		fmt.Printf("[✓] 已覆写: %s\n", SourceXMLRel)
+	} else {
+		fmt.Printf("[-] 无变化: %s\n", SourceXMLRel)
+	}
+	if sync {
+		for _, rel := range DerivedXMLRel {
+			p := filepath.Join(xmlDir, rel)
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				return changed, fmt.Errorf("创建目录失败 %s: %w", filepath.Dir(p), err)
+			}
+			if err := os.WriteFile(p, []byte(replaced), 0o644); err != nil {
+				return changed, fmt.Errorf("同步失败 %s: %w", rel, err)
+			}
+			changed++
+			fmt.Printf("[✓] 已同步: %s\n", rel)
+		}
 	}
 	return changed, nil
 }

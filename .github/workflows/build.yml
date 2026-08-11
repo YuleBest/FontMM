@@ -32,9 +32,17 @@ jobs:
       - name: Pack module (preplace / template)
         run: bash dev/cd.sh
 
+      - name: Generate SHA256 checksums
+        run: |
+          for f in dist/*.zip; do
+            sha256sum "$f" > "$f.sha256"
+          done
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: fontmm-build
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
           retention-days: 14

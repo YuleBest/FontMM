@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# dev/sync-fonts-xml.sh — 以 fonts.xml 为唯一源, 复制生成各派生字体配置
-# ColorOS 在不同场景加载 fonts.xml / fonts_base.xml / fonts_ule.xml / font_fallback.xml,
-# 参考 MakeFontsGreatAgain 的做法, 开发阶段直接复制, 避免维护多份几乎重复的 XML
+# dev/sync-fonts-xml.sh — 以 fonts.xml 为唯一源, 复制生成各派生字体配置 (仅开发期用)
+# 注意: 该脚本仅用于开发期本地对照/调试; 模块打包 (dev/cd.sh) 不再包含派生配置,
+#       由刷入脚本 (src/customize.sh) 在设备端扫描系统 XML 生成, 提升兼容性 (issue #7)
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT_DIR/src/system/etc/fonts.xml"

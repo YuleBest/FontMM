@@ -2,6 +2,8 @@ package wght
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -99,6 +101,41 @@ func TestApplyWghtMode(t *testing.T) {
 	}
 }
 
+// 所有生效家族 (sans-serif / sys-sans-en / zh-Hans / zh-Hant) 都应被覆写,
+// 保证中英文都有正确的字重映射 (issue #7)
+func TestApplyWghtModeAllFamilies(t *testing.T) {
+	xml := "<?xml version=\"1.0\"?>\n<familyset version=\"23\">\n" +
+		"    <family name=\"sans-serif\">\n        <font weight=\"100\" style=\"normal\">SysFont-Regular.ttf\n" +
+		"            <axis tag=\"wght\" stylevalue=\"100\" />\n        </font>\n    </family>\n" +
+		"    <family name=\"sys-sans-en\">\n        <font weight=\"100\" style=\"normal\" postScriptName=\"OPlusSansEn\">SysSans-En-Regular.ttf\n" +
+		"            <axis tag=\"wght\" stylevalue=\"100\"/>\n        </font>\n    </family>\n" +
+		"    <family lang=\"zh-Hans\">\n        <font weight=\"100\" style=\"normal\" postScriptName=\"OPPO_Sans_4.0_SC\">SysSans-Hans-Regular.ttf\n" +
+		"            <axis tag=\"wght\" stylevalue=\"100\"/>\n        </font>\n        <font weight=\"400\" style=\"normal\" fallbackFor=\"serif\"\n" +
+		"            postScriptName=\"OPPO_Sans_4.0_SC\">SysSans-Hans-Regular.ttf\n        </font>\n    </family>\n" +
+		"    <family lang=\"zh-Hant,zh-Bopo\">\n        <font weight=\"100\" style=\"normal\" postScriptName=\"OPPO_Sans_4.0_TC\">SysSans-Hant-Regular.ttf\n" +
+		"            <axis tag=\"wght\" stylevalue=\"100\"/>\n        </font>\n    </family>\n" +
+		"</familyset>\n"
+	replaced := ApplyWghtMode(xml, 2, 150, 700, nil)
+	for _, tag := range []string{
+		`<family name="sans-serif">`,
+		`<family name="sys-sans-en">`,
+		`<family lang="zh-Hans">`,
+		`<family lang="zh-Hant,zh-Bopo">`,
+	} {
+		if strings.Count(replaced, tag) != 1 {
+			t.Errorf("覆写后应保留且只出现一次 %s", tag)
+		}
+	}
+	// zh-Hans 家族应保留 serif fallback 条目
+	if !strings.Contains(replaced, `fallbackFor="serif"`) {
+		t.Error("zh-Hans 家族丢失 fallbackFor=\"serif\" 条目")
+	}
+	// 各家族字号都应含平均分配后的 200 -> 233
+	if strings.Count(replaced, `stylevalue="233"`) != 4 {
+		t.Errorf("各家族应有 4 处 233 轴值, 实际 %d", strings.Count(replaced, `stylevalue="233"`))
+	}
+}
+
 // 段内有嵌套 family (如 sans-serif-black) 时, 必须配对正确的 </family>,
 // 不能把嵌套段的闭合当成外层闭合导致尾部丢失 (曾导致无法开机)
 func TestApplyWghtModeNestedFamily(t *testing.T) {
@@ -155,5 +192,84 @@ func TestApplyWghtModeNoDoubleIndent(t *testing.T) {
 	}
 	if !strings.Contains(replaced, "    <family name=\"sans-serif\">") {
 		t.Errorf("段首应为 4 空格缩进:\n%s", replaced)
+	}
+}
+
+// ApplyToDir 只覆写主配置 fonts.xml, sync 时复制到各派生配置 (issue #7)
+func TestApplyToDirSync(t *testing.T) {
+	dir := t.TempDir()
+	mkfile := func(rel, content string) {
+		p := dir + "/" + rel
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	base := "<familyset>\n" +
+		"    <family name=\"sans-serif\">\n" +
+		"        <font weight=\"100\" style=\"normal\">SysFont-Regular.ttf\n" +
+		"            <axis tag=\"wght\" stylevalue=\"100\" />\n" +
+		"        </font>\n" +
+		"    </family>\n" +
+		"</familyset>\n"
+	mkfile(SourceXMLRel, base)
+	// 派生配置预置旧内容, 验证被覆盖
+	for _, rel := range DerivedXMLRel {
+		mkfile(rel, "<familyset>\n</familyset>\n")
+	}
+
+	changed, err := ApplyToDir(dir, 2, 150, 700, nil, true)
+	if err != nil {
+		t.Fatalf("ApplyToDir: %v", err)
+	}
+	// 1 份主配置 + 5 份派生 = 6
+	if changed != 1+len(DerivedXMLRel) {
+		t.Fatalf("changed = %d, want %d", changed, 1+len(DerivedXMLRel))
+	}
+	src, err := os.ReadFile(dir + "/" + SourceXMLRel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range DerivedXMLRel {
+		data, err := os.ReadFile(dir + "/" + rel)
+		if err != nil {
+			t.Fatalf("派生配置缺失 %s: %v", rel, err)
+		}
+		if string(data) != string(src) {
+			t.Errorf("派生配置 %s 与 fonts.xml 不一致", rel)
+		}
+	}
+	if !strings.Contains(string(src), `stylevalue="233"`) {
+		t.Error("覆写后应含平均分配值 233")
+	}
+}
+
+// mode 0 + sync: 不改内容, 仅把 fonts.xml 复制到派生配置 (customize.sh 用)
+func TestApplyToDirSyncMode0(t *testing.T) {
+	dir := t.TempDir()
+	base := "<familyset>\n</familyset>\n"
+	if err := os.MkdirAll(dir+"/system/etc", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir+"/"+SourceXMLRel, []byte(base), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := ApplyToDir(dir, 0, 100, 900, nil, true)
+	if err != nil {
+		t.Fatalf("ApplyToDir: %v", err)
+	}
+	if changed != len(DerivedXMLRel) {
+		t.Fatalf("mode0+sync changed = %d, want %d", changed, len(DerivedXMLRel))
+	}
+	for _, rel := range DerivedXMLRel {
+		data, err := os.ReadFile(dir + "/" + rel)
+		if err != nil {
+			t.Fatalf("派生配置缺失 %s: %v", rel, err)
+		}
+		if string(data) != base {
+			t.Errorf("派生配置 %s 内容不一致", rel)
+		}
 	}
 }

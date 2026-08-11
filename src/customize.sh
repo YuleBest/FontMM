@@ -219,6 +219,42 @@ CHECK_FONTLOADER() {
     fi
 }
 
+# ---------- 字体配置 XML: 扫描设备 + 同步派生配置 ----------
+# 模块只内置 fonts.xml 一份主配置; 各派生配置 (fonts_base/ule/font_fallback) 按设备实际文件补齐,
+# 设备缺失时回退内置 fonts.xml, 提升跨 ColorOS 版本的兼容性 (issue #7)
+# 随后用模块内置 fontmm-wght -sync 把主配置同步到全部派生配置
+SYNC_FONT_XMLS() {
+    local xml_src="$MODPATH/system/etc/fonts.xml"
+
+    # 派生配置在设备上的真实路径 (模块内 overlay 的对应位置)
+    local device_xmls="system/etc/fonts_base.xml
+system/etc/fonts_ule.xml
+system/etc/font_fallback.xml
+system/system_ext/etc/fonts_base.xml
+system/system_ext/etc/fonts_ule.xml"
+
+    local rel=""
+    for rel in $device_xmls; do
+        mkdir -p "$MODPATH/$(dirname "$rel")"
+        if [ -f "/system/$rel" ]; then
+            cp -f "/system/$rel" "$MODPATH/$rel"
+            log "已从设备复制配置: $rel"
+        else
+            cp -f "$xml_src" "$MODPATH/$rel"
+            log "设备无 $rel, 回退内置 fonts.xml"
+        fi
+    done
+
+    # 用 Go 程序把主配置同步到派生配置 (避免 shell 复制与主配置不一致)
+    if [ -x "$MODPATH/tools/fontmm-wght" ]; then
+        if "$MODPATH/tools/fontmm-wght" -mode 0 -sync -xml-dir "$MODPATH" >/dev/null 2>&1; then
+            log "已同步派生字体配置"
+        else
+            log "同步派生配置失败 (可忽略, 使用内置副本)"
+        fi
+    fi
+}
+
 # ---------- 主流程 ----------
 MAIN() {
     CHECK_COLOROS
@@ -230,6 +266,9 @@ MAIN() {
     echo && log "开始准备字体..."
     DETECT_UPDATE_MODE
     IMPORT_OLD_FONTS
+
+    # 同步派生字体配置 (设备 XML 扫描 + fontmm-wght -sync)
+    SYNC_FONT_XMLS
 
     # 备份模块内嵌的补充字库 Emoji 字体, 供用户清除 emoji 槽位时恢复
     if [ -f "$MODPATH/system/fonts/NotoColorEmoji.ttf" ] && [ ! -f "$MODPATH/backup/NotoColorEmoji.ttf" ]; then

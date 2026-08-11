@@ -9,3 +9,4 @@ reasonix.toml
 .ref/
 src/tools/fontmm-wght
 golang/bin/
+src/SHA256SUMS

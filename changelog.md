@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **修复中文字体完全覆盖西文字体**（issue #6）：`SysFont-Regular.ttf` 改为英文槽位填充（未设置英文时仍回退简体），不再被中文字体占用，西文字形可正常显示
+- **字重覆写覆盖全部生效家族**（issue #7）：不再只改 `sans-serif`，同时覆写 `sys-sans-en` / `zh-Hans` / `zh-Hant` 家族，保证中英文一致映射
+- **字重覆写只改一份配置**（issue #7）：`fontmm-wght` 只修改 `fonts.xml` 主配置，再 `-sync` 同步到各派生配置；派生配置不再打包进模块，改由刷入脚本（`customize.sh`）扫描设备系统 XML 生成，提升跨 ColorOS 版本兼容性
+- **SHA256 完整性校验**（issue #8）：新增 `dev/gen-sha256.sh` 生成可执行文件校验（随模块打包），设备端 `tools/verify-sha256.sh` 一键校验；GitHub Release/CI 产物附带 `*.sha256` 校验文件
+
 ## v26.8.0-beta.4
 
 - **字重范围覆写**（可变字体映射引擎，Go 方案）：可变字体 wght 轴范围与实际字重等级不符时，可视化覆写 `sans-serif` 配置

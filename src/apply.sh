@@ -7,14 +7,16 @@ MODDIR="${1:-/data/adb/modules/FontMM}"
 FONTS_DIR="$MODDIR/FONTS"
 SYS_FONT_DIR="$MODDIR/system/fonts"
 
+# 注意: SysFont-Regular.ttf 是 fonts.xml 中 sans-serif 家族第一位的默认字体,
+# 作为西文槽位处理 (中文字体自带西文字形, 若同时占用该槽位会覆盖西文字体, issue #6)
 hans_fonts='SysSans-Hans-Regular.ttf
 SysFont-Static-Regular.ttf
 SysFont-Myanmar.ttf
-SysFont-Hans-Regular.ttf
-SysFont-Regular.ttf'
+SysFont-Hans-Regular.ttf'
 hant_fonts='SysSans-Hant-Regular.ttf
 SysFont-Hant-Regular.ttf'
-en_fonts='SysSans-En-Regular.ttf'
+en_fonts='SysSans-En-Regular.ttf
+SysFont-Regular.ttf'
 
 [ -f "$FONTS_DIR/hans.ttf" ] || {
     echo "[✗] FONTS/hans.ttf 不存在, 请先在 WebUI 选择字体"
@@ -52,6 +54,8 @@ if [ -f "$FONTS_DIR/en.ttf" ]; then
     install_from "$FONTS_DIR/en.ttf" "$en_fonts"
 else
     echo "[-] 未设置英文, 回退使用简体"
+    # 未选西文时仍用简体覆盖英文槽位; 西文字体在 fonts.xml 中排最前,
+    # 简体仅在缺字形时兜底 (issue #6)
     install_from "$FONTS_DIR/hans.ttf" "$en_fonts"
 fi
 

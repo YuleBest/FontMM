@@ -131,6 +131,16 @@
 2. 执行 `sh /data/adb/modules/FontMM/apply.sh`
 3. 重启设备
 
+### 校验模块完整性
+
+每个模块包都附带可执行文件的 SHA256 校验（`SHA256SUMS`），可在一键校验模块内脚本/二进制是否被篡改或损坏：
+
+```sh
+sh /data/adb/modules/FontMM/tools/verify-sha256.sh
+```
+
+GitHub Release 的 zip 附件旁均提供 `.sha256` 校验文件，可用 `sha256sum -c` 在本地验证下载完整性。
+
 ---
 
 ## 技术细节
@@ -141,11 +151,13 @@
 
 | 槽位        | 用户文件    | 挂载的系统字体文件                                                                                                                 | 回退逻辑（字体缺失时）      |
 | ----------- | ----------- | :--------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| 中文简体    | `hans.ttf`  | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`、`SysFont-Regular.ttf` | 拒绝安装和应用              |
+| 中文简体    | `hans.ttf`  | `SysSans-Hans-Regular.ttf`、`SysFont-Static-Regular.ttf`、`SysFont-Myanmar.ttf`、`SysFont-Hans-Regular.ttf`                       | 拒绝安装和应用              |
 | 中文繁体    | `hant.ttf`  | `SysSans-Hant-Regular.ttf`、`SysFont-Hant-Regular.ttf`                                                                             | 使用中文简体字体 `hans.ttf` |
-| 英文 & 数字 | `en.ttf`    | `SysSans-En-Regular.ttf`                                                                                                           | 使用中文简体字体 `hans.ttf` |
+| 英文 & 数字 | `en.ttf`    | `SysSans-En-Regular.ttf`、`SysFont-Regular.ttf`                                                                                    | 使用中文简体字体 `hans.ttf` |
 | 等宽字体    | `mono.ttf`  | `DroidSansMono.ttf`                                                                                                                | 不挂载                      |
 | Emoji 表情  | `emoji.ttf` | `NotoColorEmoji.ttf`                                                                                                               | 不挂载                      |
+
+> 注：`SysFont-Regular.ttf` 是 `fonts.xml` 中 `sans-serif` 家族默认字体，由英文槽位填充（未设置时回退简体）。西文字体在配置中排在最前，中文字体自带的西文字形仅作兜底，避免中文完全覆盖西文（issue #6）。
 
 ### 补充字库
 
@@ -180,10 +192,10 @@
         └───────────────────────┘
 ```
 
-1. **安装阶段**（`customize.sh`）：系统检查（ColorOS 版本、KernelSU 元模块、FontLoader）→ 更新模式检测与旧字体继承 → 调用 `apply.sh` 完成首次字体安装
+1. **安装阶段**（`customize.sh`）：系统检查（ColorOS 版本、KernelSU 元模块、FontLoader）→ 更新模式检测与旧字体继承 → 扫描设备系统 XML 生成派生字体配置 → 调用 `apply.sh` 完成首次字体安装
 2. **换字体阶段**（WebUI）：选择文件 → 复制到 `FONTS/` → 调用同一个 `apply.sh`，两条路径行为一致
 3. **`apply.sh` 核心逻辑**：按字体映射表把 `FONTS/` 中的字体复制到 `system/fonts/` 的对应文件，缺繁体/英文时回退简体
-4. **字体生效**：ColorOS 通过 `/system/etc/fonts.xml` 等配置引用 `SysFont*` / `SysSans*` 字体族，模块内嵌从 ColorOS 16 提取的配置（`fonts.xml` 为唯一源，开发阶段自动生成 `fonts_base.xml` / `fonts_ule.xml` / `font_fallback.xml`），替换字体文件即可全局生效
+4. **字体生效**：ColorOS 通过 `/system/etc/fonts.xml` 等配置引用 `SysFont*` / `SysSans*` 字体族，模块只内置 `fonts.xml` 主配置，各派生配置（`fonts_base.xml` / `fonts_ule.xml` / `font_fallback.xml`）由安装时扫描设备系统 XML 生成（缺失时回退内置），字重覆写时 `fontmm-wght -sync` 统一同步，提升跨 ColorOS 版本兼容性
 
 ## 开发指南
 
