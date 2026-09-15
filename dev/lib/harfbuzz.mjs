@@ -30,6 +30,13 @@ function downloadUrl(version) {
 }
 
 /** 编译 harfbuzz 用的选项 (构成缓存键的一部分) */
+/**
+ * 编译 harfbuzz 用的选项 (不含 -ffile-prefix-map, 它需要源码根路径, 在编译处追加)。
+ *
+ * 为何需要 prefix-map: harfbuzz 会通过 __FILE__ 与调试信息把源码绝对路径嵌进
+ * 目标文件, 使产物哈希随构建目录变化 (CI 的 /home/runner/... 与本地不同)。
+ * 映射为相对路径后消除该差异 —— 与 fontmm-wght 用 -trimpath 是同一目的。
+ */
 const HARFBUZZ_CXXFLAGS = ['-std=c++11', '-O2', '-fPIC'];
 
 /**
@@ -45,8 +52,15 @@ async function objectCacheKey(ndkRoot) {
   } catch {
     // 读不到就用 unknown; 缓存键仍包含 harfbuzz 版本与选项, 只是粒度变粗
   }
-  return `${HARFBUZZ_VERSION}|ndk=${ndkVersion}|api=${MIN_API}|${HARFBUZZ_CXXFLAGS.join(' ')}`;
+  // 键须覆盖全部影响产物的因素。CACHE_KEY_FLAGS 是编译时实际使用的标志集
+  // (不含依赖源码路径的 -ffile-prefix-map, 那部分固定在源码头). 若新增编译标志,
+  // 一并加入此列表, 否则改标志不会使缓存失效。
+  const flags = [...HARFBUZZ_CXXFLAGS, ...CACHE_KEY_FLAGS];
+  return `${HARFBUZZ_VERSION}|ndk=${ndkVersion}|api=${MIN_API}|${flags.join(' ')}`;
 }
+
+/** 参与缓存键、但不随编译调用显式传递的标志 (记录在此以便改动能失效缓存) */
+const CACHE_KEY_FLAGS = ['-ffile-prefix-map=<srcRoot>=harfbuzz'];
 
 /** 标记文件: 记录该对象文件对应的缓存键 */
 function keyFile(objPath) {
@@ -162,6 +176,9 @@ export async function ensureHarfBuzzObject(ndkRoot) {
     [
       ...HARFBUZZ_CXXFLAGS,
       '-c',
+      // 去掉源码绝对路径: 否则需嵌入源码路径的宏/调试信息会随构建目录变化,
+      // 使 CI 与本地编译出的对象文件字节不同 (进而产物哈希不同)
+      `-ffile-prefix-map=${srcRoot}=harfbuzz`,
       '-I',
       path.join(srcRoot, 'src'),
       '-o',
