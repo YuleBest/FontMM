@@ -28,7 +28,9 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          # 跟随 go.mod 声明的工具链版本, 避免宽泛的 '1.24' 解析到最新补丁版
+          # (CI 曾装 1.24.13 而本地是 1.24.4, 编译产物因此不同)
+          go-version-file: golang/go.mod
 
       - name: Vet
         run: cd golang && go vet ./...

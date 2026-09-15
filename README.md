@@ -330,18 +330,44 @@ pnpm fmt:check    # 前端 oxfmt 格式检查
 
 ### 可复现构建
 
-`fontmm-wght` 使用 `-trimpath -buildvcs=false` 编译，使二进制只取决于源码内容：
-无论在哪台机器、哪个目录构建，或工作树是否有未提交改动，产物哈希都一致。
-否则 Go 会把源码绝对路径与 `vcs.modified` 等状态嵌进二进制，导致 `SHA256SUMS` 随构建环境漂移。
+产物由三类因素决定，本仓库分别做了处理：
 
-模块包的内容与权限位在任何环境下都一致。若还需要**逐字节相同**的 zip（例如留档比对、镜像分发），
-设置 `SOURCE_DATE_EPOCH` 固定所有条目时间戳即可：
+**1. 源码路径与 VCS 状态** — 已消除。`fontmm-wght` 用 `-trimpath -buildvcs=false` 编译，
+否则 Go 会把源码绝对路径与 `vcs.modified` 等状态嵌进二进制，导致产物哈希随构建目录、
+以及工作树是否干净而变化。
+
+**2. 条目的时间戳** — 可控。设置 `SOURCE_DATE_EPOCH` 固定所有 zip 条目时间戳，
+即可得到逐字节相同的 zip（用于留档比对、镜像分发）：
 
 ```bash
 SOURCE_DATE_EPOCH=1700000000 pnpm run pack
 ```
 
 不设置时沿用源文件的修改时间，与 `zip` 的默认行为一致。
+
+**3. 工具链版本** — 通过固定版本对齐。编译器版本会以指纹形式留在二进制里
+（`fontmm-wght` 嵌 Go 版本，`arm64-v8a.so` 的 `.comment` 段嵌 clang 与 NDK 版本），
+所以 CI 与本地必须用**相同版本**的工具链才能得到相同哈希：
+
+| 工具 | 本地 | CI 如何对齐 |
+| ---- | ---- | ---- |
+| Go | 以 `golang/go.mod` 声明为准 | `go-version-file: golang/go.mod` |
+| NDK | `~/opt/android-ndk-r27c` | `ndk-version: r27c` |
+
+> 踩过的坑：`nttld/setup-ndk` **不会**自动设置 `ANDROID_NDK_HOME`，必须由 workflow
+> 显式传入 `steps.setup-ndk.outputs.ndk-path`；否则会静默回退到 runner 预装的其它
+> NDK 版本（曾出现声明 r27c 却用 r27d）。同理，`go-version: '1.24'` 这种宽泛写法会
+> 解析到最新补丁版（CI 装 1.24.13 而本地 1.24.4），故改用 `go-version-file`。
+
+即使工具链版本不同，产物也只是 `.comment` 指纹段有差异 —— 代码段、重定位与依赖符号
+完全一致，功能等价。对比方法：
+
+```bash
+pnpm cache:status            # 查看缓存
+node dev/build-zygisk.mjs    # 本地重建后对比
+llvm-nm -D --defined-only src/zygisk/arm64-v8a.so   # 应只有 zygisk_module_entry
+llvm-readelf -d src/zygisk/arm64-v8a.so | grep NEEDED  # 应不含 libc++_shared
+```
 
 ### Unicode 覆盖测试
 

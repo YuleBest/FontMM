@@ -28,11 +28,16 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          # 跟随 go.mod 声明的工具链版本, 避免宽泛的 '1.24' 解析到最新补丁版
+          # (CI 曾装 1.24.13 而本地是 1.24.4, 编译产物因此不同)
+          go-version-file: golang/go.mod
 
-      # Zygisk 模块 (C++) 需要 NDK 交叉编译; 该 action 会设置 ANDROID_NDK_HOME,
-      # dev/lib/ndk.mjs 据此定位工具链
+      # Zygisk 模块 (C++) 需要 NDK 交叉编译。
+      # 注意: setup-ndk 只下载并暴露路径, 不会自动设置 ANDROID_NDK_HOME,
+      # 必须由使用方显式传入, 否则 dev/lib/ndk.mjs 会回退到 runner 预装的
+      # 其它 NDK 版本 (实测踩过: 声明 r27c 却用了预装的 r27d)
       - name: Setup Android NDK
+        id: setup-ndk
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r27c
@@ -56,6 +61,8 @@ jobs:
       # 与构建机相关的状态 (缓存目录不入库, 本地开发时才生效)
       - name: Pack module (preplace / template)
         run: pnpm run pack -- --no-cache
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

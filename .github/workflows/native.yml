@@ -25,7 +25,12 @@ jobs:
         with:
           node-version: 22
 
+      # 固定 NDK 版本, 保证 CI 与开发者本地编译出的二进制一致 (至少工具链同版本)。
+      # 必须显式把 ndk-path 传给构建脚本: setup-ndk 不会自动设置 ANDROID_NDK_HOME,
+      # 否则 dev/lib/ndk.mjs 会回退到 runner 预装的其它 NDK 版本 (实测踩过:
+      # 声明 r27c 却用了预装的 r27d)
       - name: Setup Android NDK
+        id: setup-ndk
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r27c
@@ -34,6 +39,8 @@ jobs:
       # 不在 Zygisk 加载器搜索路径中的库), 校验失败即退出非 0
       - name: Build Zygisk module (arm64-v8a)
         run: node dev/build-zygisk.mjs
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
