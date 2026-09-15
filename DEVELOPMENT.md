@@ -71,6 +71,7 @@ pnpm zygisk:build        # 仅交叉编译 Zygisk 模块 -> src/zygisk/
 | `dev/gen-sha256.mjs` | 生成 `src/SHA256SUMS` 与 `dist/*.zip.sha256` |
 | `dev/build-wght.mjs` | 交叉编译 `fontmm-wght`（android/arm64） |
 | `dev/build-zygisk.mjs` | 交叉编译 Zygisk 字体预加载模块（android/arm64-v8a） |
+| `dev/build-subset.mjs` | 交叉编译 `fontmm-subset`（英文字体子集化工具） |
 | `dev/ci.mjs` | 代码检查（结构校验 + shellcheck/shfmt + 前端 lint/format/类型） |
 | `dev/empty-font.mjs` | 重新生成占位字体文件 |
 | `dev/sync-fonts-xml.mjs` | 本地生成派生字体配置（仅调试用） |
@@ -78,6 +79,7 @@ pnpm zygisk:build        # 仅交叉编译 Zygisk 模块 -> src/zygisk/
 | `dev/lib/zip.mjs` | ZIP 读写封装（打包 + 回读校验） |
 | `dev/lib/zipcache.mjs` | 预压缩缓存（复用已压缩数据，跳过 deflate） |
 | `dev/lib/ndk.mjs` | NDK 定位与 C++ 交叉编译（含产物兼容性校验） |
+| `dev/lib/harfbuzz.mjs` | harfbuzz 源码获取与静态库编译（供 `fontmm-subset` 用） |
 
 ## 代码检查
 
@@ -138,6 +140,47 @@ specialize 之前调用系统的 `Typeface.nativeWarmUpCache()`，把 FontMM 的
 node dev/build-zygisk.mjs
 llvm-nm -D --defined-only src/zygisk/arm64-v8a.so       # 应只有 zygisk_module_entry
 llvm-readelf -d src/zygisk/arm64-v8a.so | grep NEEDED   # 应不含 libc++_shared
+```
+
+## 英文字体子集化工具
+
+源码在 `native/src/subset/`，产物 `src/tools/fontmm-subset`，由 `apply.sh` 在设备端调用。
+
+**为什么需要它**：`fonts.xml` 中 `sans-serif` / `sys-sans-en` 排在 `zh-Hans` / `zh-Hant`
+之前，因此 `en.ttf` 一旦自带 CJK 字形，这些字就会被用于中文渲染，盖掉 `hans.ttf` /
+`hant.ttf`。Android 的 `fonts.xml` 无法限定字体"只负责英文"，只能在应用前把 CJK 裁掉。
+
+**实现选择**：用 harfbuzz 的 subset API 并静态链接，编译成设备端 CLI。相比
+PyInstaller + fontTools 的方案：
+
+- 无需在设备上引入 Python 运行时（PyInstaller 也不支持交叉编译到 Android，
+  且其产物依赖 glibc，无法在 Android 的 bionic libc 上运行）
+- 子集化耗时约 21ms（21MB 字体），因此**不做结果缓存**——每次重算比维护缓存的
+  失效判断与陈旧文件清理更简单可靠
+- CLI 形式使 WebUI 与「手动放字体」两条路径都能覆盖
+
+**可变字体**：已实测确认 `fvar` 轴（wght 范围与默认值）、`gvar` 变形数据（按字形
+成比例保留）、`STAT` 与 `GSUB` / `GPOS` / `GDEF` 排版表均不丢失，字重覆写功能不受影响。
+
+**CLI**：
+
+```bash
+fontmm-subset -check <font.ttf>              # 检测含 CJK 则退出码 1
+fontmm-subset -in <f.ttf> -out <o.ttf>       # 生成子集 (默认保留拉丁/希腊/西里尔)
+  [-minimal]                                 # 仅 ASCII/西欧 (体积更小, 但会缺字)
+  [-keep-cjk]                                # 额外保留 CJK 区块
+```
+
+**harfbuzz 构建缓存**：harfbuzz 源码解压后 97MB，不入库，由 `dev/lib/harfbuzz.mjs`
+在构建时下载。其中**编译耗时约 88 秒**（占整个构建绝大部分），因此缓存编译产物而非
+源码：缓存键 = harfbuzz 版本 + NDK 版本 + 编译选项，任一变化即重新编译。
+首次构建约 100s，之后约 1s。缓存位于 `dev/.cache/harfbuzz{,-obj}/`。
+
+改动后检查产物：
+
+```bash
+node dev/build-subset.mjs
+src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / 退出码 1
 ```
 
 ## 可复现构建
@@ -209,6 +252,10 @@ python3 dev/check-unicode-coverage.py "Archaic" "Seal"       # 只测指定区�
 > 注：`SysFont-Regular.ttf` 是 `fonts.xml` 中 `sans-serif` 家族默认字体，由英文槽位填充
 > （未设置时回退简体）。西文字体在配置中排在最前，中文字体自带的西文字形仅作兜底，
 > 避免中文完全覆盖西文（issue #6）。
+>
+> 英文槽位在安装前会经 `fontmm-subset` 检测，含 CJK 字形时自动裁成拉丁子集
+> （issue #10，见上节）。子集文件为 `FONTS/.en-subset.ttf`，属中转产物，
+> 不是用户槽位，不被 WebUI 读取。
 
 ### 补充字库
 
@@ -250,7 +297,7 @@ python3 dev/check-unicode-coverage.py "Archaic" "Seal"       # 只测指定区�
    → 调用 `apply.sh` 完成首次字体安装
 2. **换字体阶段**（WebUI）：选择文件 → 复制到 `FONTS/` → 调用同一个 `apply.sh`，两条路径行为一致
 3. **`apply.sh` 核心逻辑**：按字体映射表把 `FONTS/` 中的字体复制到 `system/fonts/` 的对应文件，
-   缺繁体/英文时回退简体
+   缺繁体/英文时回退简体；英文槽位在复制前会检测并裁掉 CJK 字形（issue #10）
 4. **字体生效**：ColorOS 通过 `/system/etc/fonts.xml` 等配置引用 `SysFont*` / `SysSans*` 字体族，
    模块只内置 `fonts.xml` 主配置，各派生配置（`fonts_base.xml` / `fonts_ule.xml` /
    `font_fallback.xml`）由安装时扫描设备系统 XML 生成（缺失时回退内置），字重覆写时
