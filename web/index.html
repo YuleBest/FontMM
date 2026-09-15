@@ -99,6 +99,20 @@
             <div class="home-info-value" id="home-metamodule">-</div>
           </div>
         </md-elevated-card>
+
+        <!-- 字体预热器: 让被「卸载模块」的应用仍能正常渲染字体 -->
+        <md-elevated-card class="home-card home-info-card">
+          <div class="home-info-title">字体预热器</div>
+          <div class="home-info-row">
+            <div class="home-info-label">运行状态</div>
+            <div class="home-info-value" id="home-preload-status">检测中…</div>
+          </div>
+          <div class="home-info-row">
+            <div class="home-info-label">Zygisk 提供者</div>
+            <div class="home-info-value" id="home-preload-provider">-</div>
+          </div>
+          <div class="home-preload-note" id="home-preload-note" hidden></div>
+        </md-elevated-card>
       </main>
 
       <!-- 配置视图 -->

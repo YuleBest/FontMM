@@ -176,6 +176,11 @@ async function mockExec(command: string): Promise<ExecResult> {
     );
   }
 
+  // 字体预热器状态检测 (模拟: 库已安装 + 检测到 Zygisk Next)
+  if (command.includes('LIB:yes') && command.includes('PROV:')) {
+    return slow('LIB:yes\nMAGISK:na\nPROV:zygisknext');
+  }
+
   if (command.includes('ro.product.model')) return slow('Pixel 8 Pro (模拟设备)');
   return slow(`(mock 未定义: ${command})`);
 }
@@ -293,6 +298,78 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     // 读取失败时保持空值, 由 UI 显示占位
   }
   return info;
+}
+
+// ---------------- 主页: 字体预热器状态 ----------------
+
+export interface PreloaderStatus {
+  /** 预加载库是否随模块安装 (zygisk/arm64-v8a.so 存在) */
+  libInstalled: boolean;
+  /** 是否检测到可用的 Zygisk 环境 */
+  zygiskReady: boolean;
+  /** 检测到的 Zygisk 提供者名称 (如 "Magisk 内置" / "Zygisk Next"), 未检测到为空 */
+  provider: string;
+}
+
+// 模块内 Zygisk 库路径 (与 dev/lib/ndk.mjs 的产物名一致)
+const ZYGISK_LIB = '/data/adb/modules/FontMM/zygisk/arm64-v8a.so';
+
+/**
+ * 检测字体预热器状态。
+ *
+ * Zygisk 提供者的识别规则与 src/customize.sh 的 CHECK_ZYGISK_ENV 保持一致 ——
+ * 两处判断标准不同会让用户看到互相矛盾的结论 (刷入时说可用、首页说不可用)。
+ */
+export async function getPreloaderStatus(): Promise<PreloaderStatus> {
+  if (import.meta.env.DEV) {
+    return { libInstalled: true, zygiskReady: true, provider: 'Zygisk Next (模拟)' };
+  }
+
+  const status: PreloaderStatus = { libInstalled: false, zygiskReady: false, provider: '' };
+  try {
+    // 一条命令拿全部信息, 减少 root shell 往返。每项都用显式前缀标记,
+    // 避免靠输出内容猜测 (例如 Magisk 开关值恰好也是 "1")。
+    const cmd = [
+      // 1. 预加载库是否随模块安装
+      `if [ -f '${ZYGISK_LIB}' ]; then echo 'LIB:yes'; else echo 'LIB:no'; fi`,
+      // 2. Magisk 内置 Zygisk 开关 (值为 1 表示启用)
+      `if [ -f /data/adb/magisk/magisk ]; then v=$(/data/adb/magisk/magisk --sqlite "SELECT value FROM settings WHERE key='zygisk';" 2>/dev/null | tr -d '\\r'); if [ "$v" = "1" ]; then echo 'MAGISK:yes'; else echo 'MAGISK:no'; fi; else echo 'MAGISK:na'; fi`,
+      // 3. 独立 Zygisk 提供者模块 (各实现布局不同, 逐一识别)
+      `for d in /data/adb/modules/*; do [ -d "$d" ] || continue; n=$(basename "$d"); [ "$n" = "FontMM" ] && continue; [ -f "$d/disable" ] && continue; if [ -d "$d/zygisk" ]; then echo "PROV:$n"; elif [ -f "$d/lib64/libzygisk.so" ] || [ -f "$d/lib/libzygisk.so" ]; then echo "PROV:$n"; elif [ -f "$d/bin/zygisk-ptrace64" ] || [ -f "$d/bin/zygiskd64" ]; then echo "PROV:$n"; fi; done`,
+    ].join('; ');
+
+    const { errno, stdout } = await exec(cmd);
+    if (errno !== 0) return status;
+
+    const lines = stdout
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    status.libInstalled = lines.includes('LIB:yes');
+
+    if (lines.includes('MAGISK:yes')) {
+      status.zygiskReady = true;
+      status.provider = 'Magisk 内置 Zygisk';
+    }
+
+    // 独立提供者模块 (Zygisk Next / ReZygisk 等)
+    const prov = lines.find((l) => l.startsWith('PROV:'));
+    if (prov) {
+      const name = prov.slice('PROV:'.length);
+      // 模块目录名可读性较差 (如 rezygisk), 做一次友好化映射
+      const friendly: Record<string, string> = {
+        rezygisk: 'ReZygisk',
+        zygisknext: 'Zygisk Next',
+        'zygisk-next': 'Zygisk Next',
+      };
+      status.zygiskReady = true;
+      status.provider = friendly[name.toLowerCase()] ?? name;
+    }
+  } catch {
+    // 读取失败保持默认值 (未安装 / 不可用)
+  }
+  return status;
 }
 
 // 用 am start 在 WebUI 之外打开链接/应用 (避免在 WebView 内打开)

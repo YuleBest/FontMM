@@ -522,7 +522,20 @@ md-dialog {
       line-height: var(--md-sys-typescale-title-medium-line-height);
       color: var(--md-sys-color-on-surface);
       word-break: break-all;
+
+      // 异常状态 (如预热器未生效) 用错误色, 与测试页的提示语义一致
+      &.is-error {
+        color: var(--md-sys-color-error);
+      }
     }
+  }
+
+  // 未就绪时的补充说明: 解释原因与处理办法, 比单纯标红更有用
+  .home-preload-note {
+    margin-top: 6px;
+    font-size: var(--md-sys-typescale-body-small-size);
+    line-height: 1.4;
+    color: var(--md-sys-color-outline);
   }
 }
 

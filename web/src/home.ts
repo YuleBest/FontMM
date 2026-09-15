@@ -1,4 +1,4 @@
-import { amStart, exec, getSystemInfo, moduleInfo } from './ksu';
+import { amStart, exec, getPreloaderStatus, getSystemInfo, moduleInfo } from './ksu';
 import { rebootBtn } from './dom';
 import { ALIPAY_PKG, DEV_PROFILE_URL, DONATE_ALIPAY_URI, DONATE_IFDIAN_URL } from './constants';
 
@@ -60,6 +60,39 @@ export async function loadHome(): Promise<void> {
     }
   } catch {
     set('home-metamodule', '未安装');
+  }
+
+  await loadPreloader();
+}
+
+// 渲染字体预热器状态。
+// 就绪条件: 预加载库随模块安装 + 存在可用的 Zygisk 环境 (两者缺一不可)。
+async function loadPreloader(): Promise<void> {
+  const status = await getPreloaderStatus();
+
+  const statusEl = document.getElementById('home-preload-status');
+  const providerEl = document.getElementById('home-preload-provider');
+  const noteEl = document.getElementById('home-preload-note');
+  if (!statusEl || !providerEl || !noteEl) return;
+
+  const ready = status.libInstalled && status.zygiskReady;
+
+  // 状态色: 就绪用主题主色, 未就绪用错误色 (与其他状态提示一致的语义)
+  statusEl.textContent = ready ? '已启用' : '未生效';
+  statusEl.classList.toggle('is-error', !ready);
+  providerEl.textContent = status.provider || '未检测到';
+
+  // 未就绪时给出具体原因, 而不是只显示一个笼统的失败状态
+  if (ready) {
+    noteEl.hidden = true;
+    noteEl.textContent = '';
+  } else if (!status.libInstalled) {
+    noteEl.hidden = false;
+    noteEl.textContent = '模块内未找到 zygisk/arm64-v8a.so, 请重新刷入模块。';
+  } else {
+    noteEl.hidden = false;
+    noteEl.textContent =
+      '未检测到可用的 Zygisk 环境, 字体预热不会生效, 被「卸载模块」的应用可能字体异常。请在 Root 管理器中启用内置 Zygisk, 或安装 Zygisk Next / ReZygisk。';
   }
 }
 
