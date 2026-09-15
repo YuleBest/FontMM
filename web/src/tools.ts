@@ -187,6 +187,10 @@ export const MiFontToolDef: ToolDef = {
           </md-icon-button>
         `;
         card.querySelector('.mi-item-title')!.textContent = it.title;
+        // 下载所需的主题 ID 存在按钮上, 供点击时读取 (之前未写入导致下载始终失败)
+        const dlBtn = card.querySelector('.mi-item-dl') as HTMLElement;
+        dlBtn.dataset.link = it.link;
+        dlBtn.dataset.title = it.title;
         resultEl.appendChild(card);
       }
     };
@@ -264,9 +268,14 @@ export const MiFontToolDef: ToolDef = {
 
     const startDownload = async (itemEl: HTMLElement): Promise<void> => {
       if (downloading) return;
-      const card = itemEl.closest('.mi-item') as HTMLElement;
-      const title = card.querySelector('.mi-item-title')?.textContent ?? '';
-      const link = (card.querySelector('.mi-item-dl') as HTMLElement | null)?.dataset.link ?? '';
+      // link/title 由 renderItems 写在按钮的 data-* 上
+      const title = itemEl.dataset.title ?? '';
+      const link = itemEl.dataset.link ?? '';
+      if (!link) {
+        logEl.hidden = false;
+        logEl.textContent = '下载失败: 缺少主题 ID, 请重新搜索后再试';
+        return;
+      }
       downloading = true;
       try {
         const logFile = '/data/adb/modules/FontMM/webroot/mi-download.log';
