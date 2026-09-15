@@ -6,4 +6,18 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      '@zip.js/zip.js':
+        specifier: ^2.15.0
+        version: 2.15.0
+
+packages:
+
+  '@zip.js/zip.js@2.15.0':
+    resolution: {integrity: sha512-hYAuHAaWjt0axbofaDL5XUlmrQPsBDcK3f45ApZuh6N+8UGVk26GoGdtGDvcvzahsHytTQ6DtBVXwG9IcCMjjQ==}
+    engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
+
+snapshots:
+
+  '@zip.js/zip.js@2.15.0': {}

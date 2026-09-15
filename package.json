@@ -3,16 +3,26 @@
   "private": true,
   "scripts": {
     "dev": "pnpm -C web dev",
-    "build": "pnpm -C web build && bash dev/cd.sh",
-    "build:only-web": "pnpm -C web build && bash dev/webzip.sh",
+    "build": "pnpm -C web build && node dev/pack.mjs",
+    "build:only-web": "pnpm -C web build && node dev/webzip.mjs",
+    "pack": "node dev/pack.mjs",
     "lint": "pnpm -C web lint",
     "fmt": "pnpm -C web fmt",
     "fmt:check": "pnpm -C web fmt:check",
     "type-check": "pnpm -C web type-check",
+    "check": "node dev/ci.mjs",
+    "check:strict": "node dev/ci.mjs --strict",
     "shellcheck": "find src -name '*.sh' -print0 | xargs -0 shellcheck",
-    "shfmt": "find src -name '*.sh' -print0 | xargs -0 shfmt -i 4 -w -d",
+    "shfmt": "find src -name '*.sh' -print0 | xargs -0 shfmt -i 4 -d",
+    "shfmt:fix": "find src -name '*.sh' -print0 | xargs -0 shfmt -i 4 -w",
     "go:test": "cd golang && go vet ./... && go test ./...",
-    "go:build": "bash dev/build-wght.sh",
-    "go:build:local": "cd golang && go build -o /tmp/fontmm-wght ./cmd/fontmm-wght"
+    "go:build": "node dev/build-wght.mjs",
+    "go:build:local": "cd golang && go build -o /tmp/fontmm-wght ./cmd/fontmm-wght",
+    "sha256": "node dev/gen-sha256.mjs",
+    "sync:fonts-xml": "node dev/sync-fonts-xml.mjs",
+    "empty-font": "node dev/empty-font.mjs"
+  },
+  "devDependencies": {
+    "@zip.js/zip.js": "^2.15.0"
   }
 }

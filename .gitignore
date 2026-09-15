@@ -10,3 +10,10 @@ reasonix.toml
 src/tools/fontmm-wght
 golang/bin/
 src/SHA256SUMS
+
+# 派生字体配置: 由设备端 customize.sh 扫描系统 XML 生成, 不随仓库分发。
+# dev/sync-fonts-xml.mjs 会在本地生成这些文件供调试, 需避免误提交。
+src/system/etc/fonts_base.xml
+src/system/etc/fonts_ule.xml
+src/system/etc/font_fallback.xml
+src/system/system_ext/

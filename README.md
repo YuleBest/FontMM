@@ -201,12 +201,13 @@ GitHub Release 的 zip 附件旁均提供 `.sha256` 校验文件，可用 `sha25
 
 ### 环境要求
 
-- Node.js ≥ 18 + [pnpm](https://pnpm.io/)
-- `zip` / `unzip`
-- `shellcheck` + `shfmt`（仅 CI 检查需要）
-- `Python 3` + `fontTools`（Unicode 覆盖测试）
-- `Golang`
-- 任意可运行 `ash` 的环境（验证 shell 脚本）
+- **Node.js ≥ 18** + [pnpm](https://pnpm.io/)（构建脚本全部为 Node 脚本，不再依赖 shell 工具链）
+- `Golang`（编译字重覆写工具 `fontmm-wght`）
+- `Python 3` + `fontTools`（仅 Unicode 覆盖测试需要）
+- `shellcheck` + `shfmt`（可选，装上后 `pnpm check` 会额外检查 `src/` 下的 shell 脚本）
+
+> 构建流程不再需要 `zip` / `unzip` 命令：打包由 Node 脚本调用 [@zip.js/zip.js](https://github.com/gildas-lormeau/zip.js) 完成，
+> 在 Windows、精简容器与各类 CI 镜像中均可直接运行。
 
 ### 安装依赖
 
@@ -224,28 +225,68 @@ pnpm dev
 
 ### 构建与打包
 
-完整构建：
+完整构建（WebUI + 模块打包）：
 
 ```bash
 pnpm build
 ```
 
-单独构建 WebUI 产物（调试用）：
+产出 `dist/FontMM_v<版本>_preplace.zip` 与 `_template.zip` 两个模块包，以及对应的 `.sha256` 校验文件。
+
+单独执行某一步：
 
 ```bash
-pnpm build:only-web      # 产出 dist/webroot.zip
+pnpm -C web build        # 仅构建 WebUI 到 src/webroot
+pnpm run pack            # 仅打包模块 (含 Go 交叉编译, 生成 .sha256)
+pnpm build:only-web      # 仅打包 WebUI 产物 -> dist/webroot.zip (调试用)
+pnpm go:build            # 仅交叉编译 fontmm-wght -> src/tools/
 ```
+
+> 注意用 `pnpm run pack` 而非 `pnpm pack`——后者是 pnpm 内置的 npm 包打包命令。
+
+构建脚本位于 `dev/`，公共逻辑在 `dev/lib/`：
+
+| 脚本 | 作用 |
+| ---- | ---- |
+| `dev/pack.mjs` | 模块打包主流程（编译 Go → 生成校验表 → 打包两版 → 校验产物） |
+| `dev/webzip.mjs` | 仅打包 WebUI 产物 |
+| `dev/gen-sha256.mjs` | 生成 `src/SHA256SUMS` 与 `dist/*.zip.sha256` |
+| `dev/build-wght.mjs` | 交叉编译 `fontmm-wght`（android/arm64） |
+| `dev/ci.mjs` | 代码检查（结构校验 + shellcheck/shfmt + 前端 lint/format/类型） |
+| `dev/empty-font.mjs` | 重新生成占位字体文件 |
+| `dev/sync-fonts-xml.mjs` | 本地生成派生字体配置（仅调试用） |
+| `dev/lib/zip.mjs` | ZIP 读写封装（打包 + 回读校验） |
 
 ### 代码检查
 
 > 前端 lint/format 由 [oxlint](https://oxc.rs/) 与 [oxfmt](https://oxc.rs/) 提供
 
 ```bash
-pnpm lint        # 前端 oxlint 检查
-pnpm fmt         # 前端 oxfmt 格式化
-pnpm fmt:check   # 前端 oxfmt 格式检查
-bash dev/ci.sh   # src/ 下所有 .sh 的 shellcheck + shfmt 检查
+pnpm check        # 全部检查 (缺 shellcheck/shfmt 时自动跳过)
+pnpm check:strict # CI 模式: 缺少 shellcheck/shfmt 直接失败
+pnpm lint         # 前端 oxlint 检查
+pnpm fmt          # 前端 oxfmt 格式化
+pnpm fmt:check    # 前端 oxfmt 格式检查
 ```
+
+`pnpm check` 除了跑 lint 与类型检查，还会做几项结构一致性校验：`module.prop` 字段完整性、
+`fonts.xml` 标签配对、`apply.sh` 的占位字体映射与 `empty-font.mjs` 的清单是否一一对应、
+派生配置是否被误提交等。
+
+### 可复现构建
+
+`fontmm-wght` 使用 `-trimpath -buildvcs=false` 编译，使二进制只取决于源码内容：
+无论在哪台机器、哪个目录构建，或工作树是否有未提交改动，产物哈希都一致。
+否则 Go 会把源码绝对路径与 `vcs.modified` 等状态嵌进二进制，导致 `SHA256SUMS` 随构建环境漂移。
+
+模块包的内容与权限位在任何环境下都一致。若还需要**逐字节相同**的 zip（例如留档比对、镜像分发），
+设置 `SOURCE_DATE_EPOCH` 固定所有条目时间戳即可：
+
+```bash
+SOURCE_DATE_EPOCH=1700000000 pnpm run pack
+```
+
+不设置时沿用源文件的修改时间，与 `zip` 的默认行为一致。
 
 ### Unicode 覆盖测试
 
@@ -260,8 +301,9 @@ python3 dev/check-unicode-coverage.py "Archaic" "Seal"       # 只测指定区�
 
 `src/system/fonts/` 下的 `SysFont*` / `SysSans*` 是 **0 字节占位文件**，避免把大字体文件提交进仓库；安装或应用字体时由 `apply.sh` 用 `FONTS/` 里的真实字体覆盖。
 
-- 开发时可用 `dev/empty_font.sh` 重新生成这些占位文件
+- 开发时可用 `pnpm empty-font` 重新生成这些占位文件
 - `src/FONTS/hans.ttf` 是内置默认简体字体（仅 preplace 版打包）
+
 
 ## 常见问题
 

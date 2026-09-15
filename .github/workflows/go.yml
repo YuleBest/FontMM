@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - 'golang/**'
-      - 'dev/build-wght.sh'
+      - 'dev/build-wght.mjs'
+      - 'dev/lib/go.mjs'
   pull_request:
     paths:
       - 'golang/**'
-      - 'dev/build-wght.sh'
+      - 'dev/build-wght.mjs'
+      - 'dev/lib/go.mjs'
   workflow_dispatch:
 
 jobs:
@@ -17,6 +19,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -29,11 +36,13 @@ jobs:
       - name: Test
         run: cd golang && go test ./...
 
+      # 用与本地一致的构建脚本 (含 -trimpath -buildvcs=false), 保证 CI 产物
+      # 与开发者本地构建的二进制哈希一致
       - name: Cross-compile (android/arm64)
-        run: cd golang && GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o /tmp/fontmm-wght ./cmd/fontmm-wght
+        run: node dev/build-wght.mjs
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: fontmm-wght
-          path: /tmp/fontmm-wght
+          path: src/tools/fontmm-wght

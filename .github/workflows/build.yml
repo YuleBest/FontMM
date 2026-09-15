@@ -21,22 +21,31 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            web/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      # 根依赖提供打包所需的 zip 库 (@zip.js/zip.js),
+      # 打包脚本不再依赖 zip / unzip 命令, 故无需系统级安装
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install WebUI dependencies
         run: pnpm -C web install --frozen-lockfile
 
       - name: Build WebUI
         run: pnpm -C web build
 
+      # 打包内部会交叉编译 fontmm-wght 并生成两版产物与 .sha256 校验文件
+      # 注意: 必须写 `pnpm run pack`, 不可省略 run —— `pnpm pack` 是 pnpm 内置的
+      # 打包命令 (生成 npm tarball), 会与我们定义的 pack 脚本冲突
       - name: Pack module (preplace / template)
-        run: bash dev/cd.sh
-
-      - name: Generate SHA256 checksums
-        run: |
-          for f in dist/*.zip; do
-            sha256sum "$f" > "$f.sha256"
-          done
+        run: pnpm run pack
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
