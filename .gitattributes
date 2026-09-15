@@ -1,0 +1,20 @@
+# GitHub Linguist 语言统计配置
+#
+# 作用: 标注第三方 / 生成的文件, 避免它们计入仓库的语言统计 (Languages 条)。
+# 这些文件不进统计不代表不参与构建, 只影响 GitHub 的语言占比展示。
+
+# Pyodide 运行时 (WebUI「字体编辑」工具用): 从官方 release 下载的预构建产物,
+# 包含 Emscripten 编译出的 pyodide.asm.mjs (1.5MB) 等。
+# 它们会被 Linguist 当作 JavaScript 统计, 一度占本项目语言统计的 87%,
+# 掩盖了真正的源码构成 —— 故标记为第三方代码排除在外。
+web/public/pyodide/** linguist-vendored
+
+# 同理: 字体文件与 wheel 包等二进制资源不是源码, 明确排除
+web/public/*.ttf linguist-vendored
+web/public/**/*.whl linguist-vendored
+web/public/**/*.wasm linguist-vendored
+web/public/**/*.zip linguist-vendored
+
+# 模块内的字体资源 (含补充字库) 同上
+src/system/fonts/* linguist-vendored
+src/FONTS/* linguist-vendored
