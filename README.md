@@ -53,9 +53,11 @@
 
 #### 管理器配置
 
-一般而言，如果你**正确安装了 Fontloader**，可以无需关闭「默认卸载模块」以及「卸载模块（内核级）」功能，**但我们始终建议关闭**，因为关闭后模块才能做到尽可能的全场景覆盖。
+本模块已**内置字体预加载**，可以无需关闭「默认卸载模块」以及「卸载模块（内核级）」功能，**但我们始终建议关闭**，因为关闭后模块才能做到尽可能的全场景覆盖。
 
 若您选择不关闭「默认卸载模块」以及「卸载模块（内核级）」功能，则被卸载的应用可能会出现字体不生效的情况，此时您可以通过 App Profile 功能单独关闭该应用的「卸载模块」选项，并重启应用。
+
+> 若您此前安装过 Fontloader，刷入本模块时会自动为其添加 `disable` 文件停用（不影响其数据，删除该文件即可恢复），两者功能重叠无需同时启用。
 
 ### Magisk 及其分支版本
 
@@ -71,21 +73,23 @@
 
 #### Zygisk
 
-因为 Fontloader 依赖于 Zygisk 进行运行，所以你需要安装一个可用的 Zygisk 实现，例如：
+本模块的字体预加载依赖 Zygisk 运行，因此需要一个可用的 Zygisk 实现：
 
-- [Zygisk Next](https://github.com/Dr-TSNG/ZygiskNext/releases)
+- Magisk 用户：在设置中启用内置的 Zygisk
+- KernelSU 用户：安装独立的 Zygisk 提供者，例如 [Zygisk Next](https://github.com/Dr-TSNG/ZygiskNext/releases) 或 [ReZygisk](https://github.com/PerformanC/ReZygisk/releases)
 
 **如果您选择使用 Zygisk Next，则还需要到其 WebUI 页面中将「排除列表策略」选项更改为「仅还原挂载」**。
 
-#### Fontloader
+> 注意：Magisk 内置 Zygisk 与独立 Zygisk 提供者不可同时启用；使用 ReZygisk 等独立实现时请关闭 Magisk 内置 Zygisk。
 
-**我们建议您在安装本模块前预先安装 Fontloader，否则可能出现应用闪退、开机卡第二屏、字体显示错误等严重错误**。
+#### 为什么不再需要 Fontloader
 
-从 Android 12 起，系统加载字体的方式变为了在 App 启动时按需加载，这会导致被管理器卸载模块的 App 找不到字体文件，从而崩溃，**包括 Android 系统 App**。Fontloader 就是用来解决这个问题的，它会在 App 尚未失去字体访问权限时为 App 预加载字体。
+从 Android 12 起，系统加载字体的方式变为了在 App 启动时按需加载，这会导致被 Root 管理器卸载模块的 App 找不到字体文件，从而崩溃，**包括 Android 系统 App**。
 
-由于 `RikkaW/FontLoader` 已经停更，推荐使用：
+Fontloader 这类模块的作用就是在 App 尚未失去字体访问权限时，抢先让系统把字体读入缓存。**本模块已把这套逻辑内置**（`native/`，约 200 行 C++），因此：
 
-- [aviraxp/fontloader](https://github.com/KernelSU-Modules-Repo/fontloader/releases)
+- 无需再安装任何外部 Fontloader（`RikkaW/FontLoader` 已删库，`aviraxp/fontloader` 和 `JingMatrix/FontLoader` 亦有停更风险）
+- 不会因上游模块停更 / 删库而失效
 
 ---
 
@@ -192,10 +196,11 @@ GitHub Release 的 zip 附件旁均提供 `.sha256` 校验文件，可用 `sha25
         └───────────────────────┘
 ```
 
-1. **安装阶段**（`customize.sh`）：系统检查（ColorOS 版本、KernelSU 元模块、FontLoader）→ 更新模式检测与旧字体继承 → 扫描设备系统 XML 生成派生字体配置 → 调用 `apply.sh` 完成首次字体安装
+1. **安装阶段**（`customize.sh`）：系统检查（ColorOS 版本、KernelSU 元模块、Zygisk 环境）→ 停用重叠的外部 Fontloader → 更新模式检测与旧字体继承 → 扫描设备系统 XML 生成派生字体配置 → 调用 `apply.sh` 完成首次字体安装
 2. **换字体阶段**（WebUI）：选择文件 → 复制到 `FONTS/` → 调用同一个 `apply.sh`，两条路径行为一致
 3. **`apply.sh` 核心逻辑**：按字体映射表把 `FONTS/` 中的字体复制到 `system/fonts/` 的对应文件，缺繁体/英文时回退简体
 4. **字体生效**：ColorOS 通过 `/system/etc/fonts.xml` 等配置引用 `SysFont*` / `SysSans*` 字体族，模块只内置 `fonts.xml` 主配置，各派生配置（`fonts_base.xml` / `fonts_ule.xml` / `font_fallback.xml`）由安装时扫描设备系统 XML 生成（缺失时回退内置），字重覆写时 `fontmm-wght -sync` 统一同步，提升跨 ColorOS 版本兼容性
+5. **字体预加载**（`zygisk/arm64-v8a.so`）：App 进程 specialize 前，模块把 FontMM 的字体文件预读进系统字体缓存，使被「卸载模块」的 App 仍能正常渲染字体
 
 ## 开发指南
 
@@ -203,8 +208,18 @@ GitHub Release 的 zip 附件旁均提供 `.sha256` 校验文件，可用 `sha25
 
 - **Node.js ≥ 18** + [pnpm](https://pnpm.io/)（构建脚本全部为 Node 脚本，不再依赖 shell 工具链）
 - `Golang`（编译字重覆写工具 `fontmm-wght`）
+- **Android NDK**（编译 Zygisk 字体预加载模块 `zygisk/arm64-v8a.so`）
 - `Python 3` + `fontTools`（仅 Unicode 覆盖测试需要）
 - `shellcheck` + `shfmt`（可选，装上后 `pnpm check` 会额外检查 `src/` 下的 shell 脚本）
+
+NDK 通过环境变量 `ANDROID_NDK_HOME` 指定，或放在以下位置之一（按优先级）：
+`~/opt/android-ndk-r27c`、`~/Android/Sdk/ndk`、`/opt/android-ndk`。
+
+```bash
+# 下载 NDK (约 630MB)
+curl -LO https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+unzip android-ndk-r27c-linux.zip -d ~/opt/
+```
 
 > 构建流程不再需要 `zip` / `unzip` 命令：打包由 Node 脚本调用 [@zip.js/zip.js](https://github.com/gildas-lormeau/zip.js) 完成，
 > 在 Windows、精简容器与各类 CI 镜像中均可直接运行。
@@ -237,9 +252,10 @@ pnpm build
 
 ```bash
 pnpm -C web build        # 仅构建 WebUI 到 src/webroot
-pnpm run pack            # 仅打包模块 (含 Go 交叉编译, 生成 .sha256)
+pnpm run pack            # 仅打包模块 (含 Go/C++ 交叉编译, 生成 .sha256)
 pnpm build:only-web      # 仅打包 WebUI 产物 -> dist/webroot.zip (调试用)
 pnpm go:build            # 仅交叉编译 fontmm-wght -> src/tools/
+pnpm zygisk:build        # 仅交叉编译 Zygisk 模块 -> src/zygisk/
 ```
 
 > 注意用 `pnpm run pack` 而非 `pnpm pack`——后者是 pnpm 内置的 npm 包打包命令。
@@ -248,14 +264,32 @@ pnpm go:build            # 仅交叉编译 fontmm-wght -> src/tools/
 
 | 脚本 | 作用 |
 | ---- | ---- |
-| `dev/pack.mjs` | 模块打包主流程（编译 Go → 生成校验表 → 打包两版 → 校验产物） |
+| `dev/pack.mjs` | 模块打包主流程（编译 Go/C++ → 生成校验表 → 打包两版 → 校验产物） |
 | `dev/webzip.mjs` | 仅打包 WebUI 产物 |
 | `dev/gen-sha256.mjs` | 生成 `src/SHA256SUMS` 与 `dist/*.zip.sha256` |
 | `dev/build-wght.mjs` | 交叉编译 `fontmm-wght`（android/arm64） |
+| `dev/build-zygisk.mjs` | 交叉编译 Zygisk 字体预加载模块（android/arm64-v8a） |
 | `dev/ci.mjs` | 代码检查（结构校验 + shellcheck/shfmt + 前端 lint/format/类型） |
 | `dev/empty-font.mjs` | 重新生成占位字体文件 |
 | `dev/sync-fonts-xml.mjs` | 本地生成派生字体配置（仅调试用） |
 | `dev/lib/zip.mjs` | ZIP 读写封装（打包 + 回读校验） |
+| `dev/lib/ndk.mjs` | NDK 定位与 C++ 交叉编译（含产物兼容性校验） |
+
+### Zygisk 字体预加载模块
+
+源码在 `native/`，编译产物 `src/zygisk/arm64-v8a.so` 随包分发。它做的事很小：在 App 进程
+specialize 之前调用系统的 `Typeface.nativeWarmUpCache()`，把 FontMM 的字体文件预读进
+系统字体缓存（详见 `native/src/fontmm.cpp` 顶部注释）。
+
+编译选项有两条硬约束，改动时需留意 `dev/lib/ndk.mjs` 里的校验：
+
+- **不得依赖 `libc++_shared.so`**：Zygisk 提供者使用自研 ELF 加载器（不用系统 `dlopen`），
+  其库搜索路径只含系统目录，找不到 `libc++_shared.so` 会导致模块加载失败。
+- **不得引用 `__cxa_guard_acquire` / `__cxa_guard_release`**：这两个符号不在 bionic libc
+  的导出表中（仅 libc++ 提供），因此用 `-fno-threadsafe-statics` 取消静态局部变量的
+  线程安全保护（`zygisk.hpp` 的 `entry_impl` 使用了静态局部变量）。
+
+构建脚本会自动校验导出符号只有 `zygisk_module_entry`、且未链接 libc++，不满足即报错。
 
 ### 代码检查
 
@@ -323,4 +357,8 @@ A：不会，检测到已安装的 FontMM 时会进入更新模式，从旧模�
 
 ## 许可
 
-[MIT License](./LICENSE)
+[GNU General Public License v3.0](./LICENSE)
+
+本模块内置的 Zygisk 字体预加载部分（`native/`）参考了 [FontLoader](https://github.com/JingMatrix/FontLoader) 的实现思路，
+其上游 Zygisk Next 以 GPL-3.0 发布，故本项目整体采用 GPL-3.0。
+`native/src/zygisk.hpp` 为 [topjohnwu](https://github.com/topjohnwu/zygisk-module-sample) 的宽松许可（MIT 式）头文件，可自由内联。

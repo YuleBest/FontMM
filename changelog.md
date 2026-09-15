@@ -1,5 +1,20 @@
 # Changelog
 
+## v26.8.0-beta.6
+
+- **内置字体预加载，不再依赖 Fontloader**：把 Fontloader 的核心逻辑（约 200 行 C++）集成进模块（`native/`，产物 `zygisk/arm64-v8a.so`，6.8KB）
+  - 原理：App 进程 specialize 前调用 `Typeface.nativeWarmUpCache()` 把字体预读进系统缓存，使被「卸载模块」的 App 仍能正常渲染字体
+  - 只预热 FontMM 自己的字体（编译期常量表），无需 Fontloader 那样的 root companion 进程与 socket IPC
+  - 刷入时自动为已安装的外部 Fontloader 添加 `disable` 停用（保留其数据，删除该文件即可恢复）
+  - 不再要求用户预先安装 Fontloader（`RikkaW/FontLoader` 已删库，其余分支亦有停更风险）
+- **Zygisk 环境检查**：替代原先的 Fontloader 版本检查，识别 Magisk 内置 Zygisk 与独立提供者（Zygisk Next / ReZygisk），缺失时提示而非阻断
+- **许可证变更为 GPL-3.0**：因内置部分参考了 GPL-3.0 的 Fontloader 实现
+- **构建流程由 shell 改为 Node 脚本**：`dev/*.sh` 全部重写为 `dev/*.mjs`，摆脱对 `zip`/`unzip` 的依赖，Windows / 精简容器 / CI 镜像均可构建
+  - 修复 Go 构建不可复现问题（`-trimpath -buildvcs=false`）：原先产物哈希随构建目录与工作树状态变化
+  - 修复 SHA256 校验文件写绝对路径导致用户无法 `sha256sum -c` 校验
+  - 新增 `pnpm check` 结构校验（含预热字体清单与 `apply.sh` 的一致性检查）
+- **修复小米主题字体工具**：搜索此前因响应解析结构与接口不符而恒无结果；下载按钮因未写入主题 ID 而始终失败
+
 ## v26.8.0-beta.5
 
 - **修复中文字体完全覆盖西文字体**（issue #6）：`SysFont-Regular.ttf` 改为英文槽位填充（未设置英文时仍回退简体），不再被中文字体占用，西文字形可正常显示
