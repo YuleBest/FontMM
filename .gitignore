@@ -7,7 +7,9 @@ reasonix.toml
 .agent/
 
 .ref/
+# 构建产物: 模块内二进制 (由 dev/build-*.mjs 交叉编译)
 src/tools/fontmm-wght
+src/tools/fontmm-subset
 golang/bin/
 src/SHA256SUMS
 

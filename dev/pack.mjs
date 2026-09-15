@@ -5,12 +5,13 @@
 //   _preplace: 含 FONTS/hans.ttf, 适合全新安装
 //   _template: FONTS/ 为空目录, 适合更新已有模块 (customize.sh 从旧模块继承字体)
 //
-// 流程: 编译 fontmm-wght (Go) 与 Zygisk 模块 (C++) -> 生成 SHA256SUMS
-//       -> 打包两版 (复用预压缩缓存) -> 校验产物 -> 生成发布校验文件
+// 流程: 编译 fontmm-wght (Go) / Zygisk 模块 (C++) / fontmm-subset (C++)
+//       -> 生成 SHA256SUMS -> 打包两版 (复用预压缩缓存) -> 校验产物 -> 生成发布校验文件
 //
-// 用法: node dev/pack.mjs [--skip-go] [--skip-zygisk] [--no-cache]
+// 用法: node dev/pack.mjs [--skip-go] [--skip-zygisk] [--skip-subset] [--no-cache]
 //   --skip-go:     跳过 Go 交叉编译 (CI 中已单独构建时使用)
 //   --skip-zygisk: 跳过 Zygisk 模块编译 (无 NDK 或已构建好时使用)
+//   --skip-subset: 跳过 fontmm-subset 编译 (无网络或已构建好时使用)
 //   --no-cache:    禁用预压缩缓存 (用于验证缓存与非缓存产物一致)
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -21,9 +22,11 @@ import { run, hasCommand } from './lib/exec.mjs';
 import { buildWght, wghtBinRel, WGHT_BIN } from './lib/go.mjs';
 import { subtreeKey, openCache, saveCacheFromZip } from './lib/zipcache.mjs';
 import { findNdk, buildZygiskModule, TARGET_ABI } from './lib/ndk.mjs';
+import { buildSubsetTool } from './lib/harfbuzz.mjs';
 
 const skipGo = process.argv.includes('--skip-go');
 const skipZygisk = process.argv.includes('--skip-zygisk');
+const skipSubset = process.argv.includes('--skip-subset');
 /** 预压缩缓存开关 (--no-cache 关闭; CI 中禁用可避免缓存目录带来的不确定性) */
 const CACHE_ENABLED = !process.argv.includes('--no-cache');
 /** 打包压缩级别 (与原 zip -2 一致); 也是缓存片段的压缩级别, 变更会使缓存失效 */
@@ -91,11 +94,36 @@ if (skipZygisk) {
   log.ok(`产物: ${path.relative(ROOT, zygiskBin)} (${size} 字节)`);
 }
 
-// ---------- 3. 生成模块内可执行文件校验表 (src/SHA256SUMS) ----------
+// ---------- 3. 编译 fontmm-subset (英文字体子集化工具, issue #10) ----------
+// 依赖 harfbuzz (静态链接); 其源码需联网获取, 编译产物带缓存见 dev/lib/harfbuzz.mjs
+const subsetBin = path.join(SRC_DIR, 'tools', 'fontmm-subset');
+if (skipSubset) {
+  log.info('已跳过 fontmm-subset 编译 (--skip-subset)');
+  try {
+    await fsp.access(subsetBin);
+  } catch {
+    die(`缺少 ${path.relative(ROOT, subsetBin)}, 请先运行 pnpm subset:build`);
+  }
+} else {
+  // 复用上一步已定位的 NDK (未走 Zygisk 分支时需重新定位)
+  const ndkRoot = await findNdk();
+  if (!ndkRoot) {
+    die(
+      '未找到 Android NDK, 无法编译 fontmm-subset。\n' +
+        '    请设置 ANDROID_NDK_HOME, 或下载到 ~/opt/android-ndk-r27c\n' +
+        '    仅打包现有产物: node dev/pack.mjs --skip-subset',
+    );
+  }
+  const size = await buildSubsetTool(ndkRoot, subsetBin);
+  await fsp.chmod(subsetBin, 0o755);
+  log.ok(`产物: ${path.relative(ROOT, subsetBin)} (${(size / 1048576).toFixed(1)}MB)`);
+}
+
+// ---------- 4. 生成模块内可执行文件校验表 (src/SHA256SUMS) ----------
 log.step('生成 SHA256 校验文件...');
 run(process.execPath, [path.join(ROOT, 'dev', 'gen-sha256.mjs'), '--no-dist'], { cwd: ROOT });
 
-// ---------- 4. 打包 ----------
+// ---------- 5. 打包 ----------
 // 派生字体配置 (fonts_base/ule/font_fallback) 由设备端 customize.sh 扫描生成,
 // 不随包分发; 这里一律排除, 避免与设备端生成结果冲突。
 const exclude = ['*.git*', '*.DS_Store', '*.swp', '*~', '*.bak', ...DERIVED_XML_RELS];
@@ -109,7 +137,7 @@ await Promise.all([
   fsp.rm(`${tplOut}.sha256`, { force: true }),
 ]);
 
-// ---------- 4. 预压缩缓存 ----------
+// ---------- 6. 预压缩缓存 ----------
 // system/fonts/ 占整包压缩量的 ~70%, 而它在多数构建中不变 (仅发布字体时才动)。
 // 内容未变时直接复用已压缩数据 (passThrough, 不重新 deflate), 显著缩短打包时间。
 //
@@ -183,7 +211,7 @@ if (CACHE_ENABLED && !fontCache && pre.reused === 0) {
   }
 }
 
-// ---------- 4. 校验产物 ----------
+// ---------- 7. 校验产物 ----------
 // 取代原 shell 的 unzip -l / unzip -p 检查: 直接回读 zip 内容并与源文件比对,
 // 同时校验条目名、目录条目与派生配置排除情况。
 async function verify(zipPath, { label, requireFonts, forbidFonts }) {
@@ -233,7 +261,7 @@ const preInfo = await verify(preOut, { label: 'preplace 版', requireFonts: true
 const tplInfo = await verify(tplOut, { label: 'template 版', requireFonts: false, forbidFonts: true });
 log.ok(`产物校验通过 (preplace ${preInfo.checked}/${preInfo.total} 条, template ${tplInfo.checked}/${tplInfo.total} 条)`);
 
-// ---------- 5. 生成发布产物校验文件 ----------
+// ---------- 8. 生成发布产物校验文件 ----------
 run(process.execPath, [path.join(ROOT, 'dev', 'gen-sha256.mjs')], { cwd: ROOT });
 
 // ---------- 完成 ----------

@@ -1,16 +1,20 @@
-name: Native (Zygisk)
+name: Native (Zygisk / Subset)
 
 on:
   push:
     paths:
       - 'native/**'
       - 'dev/build-zygisk.mjs'
+      - 'dev/build-subset.mjs'
       - 'dev/lib/ndk.mjs'
+      - 'dev/lib/harfbuzz.mjs'
   pull_request:
     paths:
       - 'native/**'
       - 'dev/build-zygisk.mjs'
+      - 'dev/build-subset.mjs'
       - 'dev/lib/ndk.mjs'
+      - 'dev/lib/harfbuzz.mjs'
   workflow_dispatch:
 
 jobs:
@@ -35,6 +39,17 @@ jobs:
         with:
           ndk-version: r27c
 
+      # harfbuzz 的编译约需 88 秒 (占 fontmm-subset 构建的绝大部分), 故缓存其
+      # 源码与编译产物。缓存键含 harfbuzz 版本与 NDK 版本 —— 二者任一变化即
+      # 不命中, 不会用到与当前工具链不匹配的对象文件。
+      - name: Cache harfbuzz
+        uses: actions/cache@v4
+        with:
+          path: |
+            dev/.cache/harfbuzz
+            dev/.cache/harfbuzz-obj
+          key: harfbuzz-${{ runner.os }}-${{ hashFiles('dev/lib/harfbuzz.mjs') }}
+
       # 构建脚本自身会校验导出符号与动态依赖 (不得依赖 libc++_shared 等
       # 不在 Zygisk 加载器搜索路径中的库), 校验失败即退出非 0
       - name: Build Zygisk module (arm64-v8a)
@@ -42,8 +57,16 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-      - name: Upload artifact
+      - name: Build subset tool (arm64)
+        run: node dev/build-subset.mjs
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fontmm-zygisk-arm64-v8a
-          path: src/zygisk/arm64-v8a.so
+          name: fontmm-native
+          path: |
+            src/zygisk/arm64-v8a.so
+            src/tools/fontmm-subset
+          retention-days: 14

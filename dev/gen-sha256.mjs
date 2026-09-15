@@ -24,6 +24,7 @@ const noDist = process.argv.includes('--no-dist');
 const SUM_PATTERNS = [
   (name) => name.endsWith('.sh'),
   (name) => name === 'fontmm-wght',
+  (name) => name === 'fontmm-subset',
   (name) => name.endsWith('.so'), // Zygisk 模块 (zygisk/arm64-v8a.so)
   (name) => name === 'update-binary',
   (name) => name === 'updater-script',

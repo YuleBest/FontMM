@@ -42,6 +42,16 @@ jobs:
         with:
           ndk-version: r27c
 
+      # harfbuzz 的编译约需 88 秒 (fontmm-subset 的构建瓶颈), 故缓存源码与编译产物。
+      # 缓存键含 harfbuzz 版本与 NDK 版本 —— 二者任一变化即不命中。
+      - name: Cache harfbuzz
+        uses: actions/cache@v4
+        with:
+          path: |
+            dev/.cache/harfbuzz
+            dev/.cache/harfbuzz-obj
+          key: harfbuzz-${{ runner.os }}-${{ hashFiles('dev/lib/harfbuzz.mjs') }}
+
       # 根依赖提供打包所需的 zip 库 (@zip.js/zip.js),
       # 打包脚本不再依赖 zip / unzip 命令, 故无需系统级安装
       - name: Install root dependencies
