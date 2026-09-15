@@ -5,10 +5,12 @@
 //   _preplace: 含 FONTS/hans.ttf, 适合全新安装
 //   _template: FONTS/ 为空目录, 适合更新已有模块 (customize.sh 从旧模块继承字体)
 //
-// 流程: 交叉编译 fontmm-wght -> 生成 SHA256SUMS -> 打包两版 -> 校验产物 -> 生成发布校验文件
+// 流程: 编译 fontmm-wght (Go) 与 Zygisk 模块 (C++) -> 生成 SHA256SUMS
+//       -> 打包两版 -> 校验产物 -> 生成发布校验文件
 //
-// 用法: node dev/pack.mjs [--skip-go]
-//   --skip-go: 跳过 Go 交叉编译 (CI 中已单独构建时使用)
+// 用法: node dev/pack.mjs [--skip-go] [--skip-zygisk]
+//   --skip-go:     跳过 Go 交叉编译 (CI 中已单独构建时使用)
+//   --skip-zygisk: 跳过 Zygisk 模块编译 (无 NDK 或已构建好时使用)
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { log, die, stopwatch } from './lib/log.mjs';
@@ -16,8 +18,10 @@ import { ROOT, SRC_DIR, DIST_DIR, DERIVED_XML_RELS, readVersion, safeFileVersion
 import { packDir, listEntries, indexZip, hashFile } from './lib/zip.mjs';
 import { run, hasCommand } from './lib/exec.mjs';
 import { buildWght, wghtBinRel, WGHT_BIN } from './lib/go.mjs';
+import { findNdk, buildZygiskModule, TARGET_ABI } from './lib/ndk.mjs';
 
 const skipGo = process.argv.includes('--skip-go');
+const skipZygisk = process.argv.includes('--skip-zygisk');
 const elapsed = stopwatch();
 
 // 可复现打包: 设置 SOURCE_DATE_EPOCH 时, 所有 zip 条目使用该固定时间戳,
@@ -55,11 +59,37 @@ if (skipGo) {
   log.ok(`产物: ${wghtBinRel()} (${size} 字节)`);
 }
 
-// ---------- 2. 生成模块内可执行文件校验表 (src/SHA256SUMS) ----------
+// ---------- 2. 交叉编译 Zygisk 模块 (字体预加载用的 C++ 程序) ----------
+const zygiskBin = path.join(SRC_DIR, 'zygisk', `${TARGET_ABI}.so`);
+if (skipZygisk) {
+  log.info('已跳过 Zygisk 模块编译 (--skip-zygisk)');
+  try {
+    await fsp.access(zygiskBin);
+  } catch {
+    die(`缺少 ${path.relative(ROOT, zygiskBin)}, 请先运行 pnpm zygisk:build`);
+  }
+} else {
+  const ndkRoot = await findNdk();
+  if (!ndkRoot) {
+    die(
+      '未找到 Android NDK, 无法编译 Zygisk 模块。\n' +
+        '    请设置 ANDROID_NDK_HOME, 或下载到 ~/opt/android-ndk-r27c\n' +
+        '    仅打包现有产物: node dev/pack.mjs --skip-zygisk',
+    );
+  }
+  log.step(`交叉编译 Zygisk 模块 (android/${TARGET_ABI})...`);
+  const { size } = await buildZygiskModule(ndkRoot, { onLog: (m) => log.detail(m) });
+  await fsp.mkdir(path.dirname(zygiskBin), { recursive: true });
+  await fsp.copyFile(path.join(ROOT, 'native', 'build', `${TARGET_ABI}.so`), zygiskBin);
+  await fsp.chmod(zygiskBin, 0o644);
+  log.ok(`产物: ${path.relative(ROOT, zygiskBin)} (${size} 字节)`);
+}
+
+// ---------- 3. 生成模块内可执行文件校验表 (src/SHA256SUMS) ----------
 log.step('生成 SHA256 校验文件...');
 run(process.execPath, [path.join(ROOT, 'dev', 'gen-sha256.mjs'), '--no-dist'], { cwd: ROOT });
 
-// ---------- 3. 打包 ----------
+// ---------- 4. 打包 ----------
 // 派生字体配置 (fonts_base/ule/font_fallback) 由设备端 customize.sh 扫描生成,
 // 不随包分发; 这里一律排除, 避免与设备端生成结果冲突。
 const exclude = ['*.git*', '*.DS_Store', '*.swp', '*~', '*.bak', ...DERIVED_XML_RELS];

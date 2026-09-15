@@ -18,6 +18,7 @@
     "go:test": "cd golang && go vet ./... && go test ./...",
     "go:build": "node dev/build-wght.mjs",
     "go:build:local": "cd golang && go build -o /tmp/fontmm-wght ./cmd/fontmm-wght",
+    "zygisk:build": "node dev/build-zygisk.mjs",
     "sha256": "node dev/gen-sha256.mjs",
     "sync:fonts-xml": "node dev/sync-fonts-xml.mjs",
     "empty-font": "node dev/empty-font.mjs"

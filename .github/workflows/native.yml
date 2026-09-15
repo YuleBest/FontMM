@@ -1,0 +1,42 @@
+name: Native (Zygisk)
+
+on:
+  push:
+    paths:
+      - 'native/**'
+      - 'dev/build-zygisk.mjs'
+      - 'dev/lib/ndk.mjs'
+  pull_request:
+    paths:
+      - 'native/**'
+      - 'dev/build-zygisk.mjs'
+      - 'dev/lib/ndk.mjs'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      # 构建脚本自身会校验导出符号与动态依赖 (不得依赖 libc++_shared 等
+      # 不在 Zygisk 加载器搜索路径中的库), 校验失败即退出非 0
+      - name: Build Zygisk module (arm64-v8a)
+        run: node dev/build-zygisk.mjs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fontmm-zygisk-arm64-v8a
+          path: src/zygisk/arm64-v8a.so

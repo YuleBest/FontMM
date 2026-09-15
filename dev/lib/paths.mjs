@@ -11,9 +11,14 @@ export const SRC_DIR = path.join(ROOT, 'src');
 export const WEB_DIR = path.join(ROOT, 'web');
 export const DIST_DIR = path.join(ROOT, 'dist');
 export const GOLANG_DIR = path.join(ROOT, 'golang');
+/** Zygisk 原生模块 (C++) 源码目录 */
+export const NATIVE_DIR = path.join(ROOT, 'native');
 export const WEBROOT_DIR = path.join(SRC_DIR, 'webroot');
 export const MODULE_PROP = path.join(SRC_DIR, 'module.prop');
 export const FONTS_XML = path.join(SRC_DIR, 'system', 'etc', 'fonts.xml');
+
+/** 模块内 Zygisk 库目录 (相对模块根): 加载器约定读 zygisk/<abi>.so */
+export const ZYGISK_DIR_REL = 'zygisk';
 
 /** 派生字体配置 (不打包, 由设备端 customize.sh 生成; 开发期用 sync-fonts-xml 本地生成) */
 export const DERIVED_XML_RELS = [

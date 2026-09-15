@@ -1,0 +1,20 @@
+{
+  // C/C++ 智能提示配置。
+  //
+  // native/ 下的 Zygisk 模块用 Android NDK 交叉编译, 头文件 (jni.h / android/log.h 等)
+  // 不在系统路径中, 因此交给 compile_commands.json 提供真实构建参数 —— 该文件由
+  // `pnpm zygisk:build` (或 pnpm build) 生成, 首次克隆后需先构建一次。
+  //
+  // clangd 扩展会自动发现仓库根的 compile_commands.json, 无需此文件;
+  // 这里是为 Microsoft C/C++ 扩展 (ms-vscode.cpptools) 提供同等配置。
+  "configurations": [
+    {
+      "name": "Android arm64-v8a",
+      "compileCommands": "${workspaceFolder}/compile_commands.json",
+      "cStandard": "c17",
+      "cppStandard": "c++20",
+      "intelliSenseMode": "linux-clang-arm64"
+    }
+  ],
+  "version": 4
+}

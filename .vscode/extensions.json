@@ -1,3 +1,7 @@
 {
-  "recommendations": ["oxc.oxc-vscode"]
+  "recommendations": [
+    "oxc.oxc-vscode",
+    "llvm-vs-code-extensions.vscode-clangd",
+    "ms-vscode.cpptools"
+  ]
 }

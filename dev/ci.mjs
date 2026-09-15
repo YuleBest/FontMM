@@ -16,7 +16,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { log, die } from './lib/log.mjs';
-import { ROOT, SRC_DIR, WEB_DIR, MODULE_PROP, FONTS_XML, DERIVED_XML_RELS } from './lib/paths.mjs';
+import { ROOT, SRC_DIR, WEB_DIR, MODULE_PROP, FONTS_XML, DERIVED_XML_RELS, NATIVE_DIR } from './lib/paths.mjs';
 import { run, hasCommand } from './lib/exec.mjs';
 
 const strict = process.argv.includes('--strict');
@@ -155,6 +155,43 @@ await check('apply.sh 占位映射与占位清单一致', async () => {
   }
   if (onlyInPlaceholders.length) {
     throw new Error(`占位清单中的字体未被 apply.sh 使用: ${onlyInPlaceholders.join(', ')}`);
+  }
+});
+
+// Zygisk 预加载的字体清单必须覆盖 apply.sh 会替换的全部字体文件。
+// 两者若不一致, 缺失的字体在 DenyList 应用里会静默渲染失败, 问题极难定位。
+await check('Zygisk 预热字体清单与 apply.sh 一致', async () => {
+  const applySh = await fsp.readFile(path.join(SRC_DIR, 'apply.sh'), 'utf8');
+
+  // apply.sh 会写入 system/fonts/ 的全部文件名:
+  //   1. 占位字体 (hans/hant/en 三组多行列表)
+  //   2. 直接替换的系统字体 (DroidSansMono / NotoColorEmoji, 单行)
+  const expected = new Set();
+  for (const m of applySh.matchAll(/'([^']*)'/g)) {
+    const value = m[1];
+    const lines = value.includes('\n') ? value.split('\n') : [value];
+    for (const line of lines) {
+      const name = line.trim();
+      // 只看形如 xxx.ttf 的纯文件名 (排除含路径或变量的内容)
+      if (/^[A-Za-z0-9_-]+\.ttf$/.test(name)) expected.add(name);
+    }
+  }
+  if (expected.size === 0) throw new Error('未从 apply.sh 解析到字体文件名 (解析逻辑可能已失效)');
+
+  const cpp = await fsp.readFile(path.join(NATIVE_DIR, 'src', 'fontmm.cpp'), 'utf8');
+  const block = cpp.match(/kFontFiles\[\]\s*=\s*\{([\s\S]*?)\};/);
+  if (!block) throw new Error('fontmm.cpp 中未找到 kFontFiles 列表');
+  const actual = new Set(
+    [...block[1].matchAll(/"\/system\/fonts\/([A-Za-z0-9_-]+\.ttf)"/g)].map((m) => m[1]),
+  );
+
+  const missing = [...expected].filter((n) => !actual.has(n));
+  const extra = [...actual].filter((n) => !expected.has(n));
+  if (missing.length) {
+    throw new Error(`fontmm.cpp 缺少以下字体的预热 (apply.sh 会替换它们): ${missing.join(', ')}`);
+  }
+  if (extra.length) {
+    throw new Error(`fontmm.cpp 预热了 apply.sh 不会替换的字体: ${extra.join(', ')}`);
   }
 });
 

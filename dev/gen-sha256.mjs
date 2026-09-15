@@ -20,10 +20,11 @@ import { hashFile } from './lib/zip.mjs';
 
 const noDist = process.argv.includes('--no-dist');
 
-/** 模块内需要校验的文件: shell 脚本 + 模块二进制 + Magisk 安装脚本 */
+/** 模块内需要校验的文件: shell 脚本 + 模块二进制 + Zygisk 库 + Magisk 安装脚本 */
 const SUM_PATTERNS = [
   (name) => name.endsWith('.sh'),
   (name) => name === 'fontmm-wght',
+  (name) => name.endsWith('.so'), // Zygisk 模块 (zygisk/arm64-v8a.so)
   (name) => name === 'update-binary',
   (name) => name === 'updater-script',
 ];

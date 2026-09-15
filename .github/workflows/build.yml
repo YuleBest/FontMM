@@ -30,6 +30,13 @@ jobs:
         with:
           go-version: '1.24'
 
+      # Zygisk 模块 (C++) 需要 NDK 交叉编译; 该 action 会设置 ANDROID_NDK_HOME,
+      # dev/lib/ndk.mjs 据此定位工具链
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
       # 根依赖提供打包所需的 zip 库 (@zip.js/zip.js),
       # 打包脚本不再依赖 zip / unzip 命令, 故无需系统级安装
       - name: Install root dependencies
@@ -41,7 +48,8 @@ jobs:
       - name: Build WebUI
         run: pnpm -C web build
 
-      # 打包内部会交叉编译 fontmm-wght 并生成两版产物与 .sha256 校验文件
+      # 打包内部会编译 fontmm-wght (Go) 与 Zygisk 模块 (C++),
+      # 并生成两版产物与 .sha256 校验文件
       # 注意: 必须写 `pnpm run pack`, 不可省略 run —— `pnpm pack` 是 pnpm 内置的
       # 打包命令 (生成 npm tarball), 会与我们定义的 pack 脚本冲突
       - name: Pack module (preplace / template)

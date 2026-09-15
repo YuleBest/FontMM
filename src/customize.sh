@@ -173,49 +173,60 @@ CONFIRM_RISK() {
     fi
 }
 
-CONFIRM_FONTLOADER_RISK() {
-    local reason="$1"
-    echo
-    log "警告: $reason"
-    log "未安装或版本过低的 FontLoader 可能导致开机卡死、字体渲染错误或系统异常。"
-    log "请按音量上键确认继续安装, 按音量下键取消安装。"
-    if [ "$(btn)" = "1" ]; then
-        log_err "用户取消安装"
-    fi
-}
+# ---------- 判断 Zygisk 环境 ----------
+# 模块自带字体预加载 (zygisk/arm64-v8a.so), 但 Zygisk 框架本身需要由 Root 管理器
+# 或独立的 Zygisk 提供者 (Magisk 内置 Zygisk / Zygisk Next / ReZygisk 等) 提供。
+# 缺少时模块仍可安装, 只是被 DenyList 的应用可能字体异常, 故仅提示不阻断。
+CHECK_ZYGISK_ENV() {
+    local ok=0
 
-# ---------- 判断 FontLoader ----------
-CHECK_FONTLOADER() {
-    local fontloader_moddir="/data/adb/modules/fontloader"
-    local fontloader_github="https://github.com/KernelSU-Modules-Repo/fontloader/releases"
-
-    if [ ! -d "$fontloader_moddir" ]; then
-        log "注意: 你还没安装 FontLoader"
-        log "前往 $fontloader_github 安装 FontLoader"
-        CONFIRM_FONTLOADER_RISK "当前设备未安装 FontLoader。"
-        return 0
+    # Magisk 内置 Zygisk: 以是否开启 Zygisk 为准 (magisk --sqlite 查询数据库开关)
+    if [ -f /data/adb/magisk/magisk ]; then
+        local zg=""
+        zg="$(/data/adb/magisk/magisk --sqlite "SELECT value FROM settings WHERE key='zygisk';" 2>/dev/null | tr -d '\r')"
+        if [ "$zg" = "1" ]; then
+            log_succ "Magisk 内置 Zygisk 已启用"
+            ok=1
+        fi
     fi
 
-    local prop_file="$fontloader_moddir/module.prop"
-    local version_code=""
-    if [ -f "$prop_file" ]; then
-        version_code="$(sed -n 's/^versionCode=//p' "$prop_file")"
-    fi
-    version_code="$(printf '%s' "$version_code" | tr -cd '0-9')"
+    # 独立 Zygisk 提供者模块。各实现的内部布局不同, 逐一识别 (任一命中即算可用):
+    #   - Zygisk Next / Magisk 兼容第三方: 自带 zygisk/ 目录
+    #   - ReZygisk: lib64/libzygisk.so + bin/zygisk-ptrace64 (无 zygisk/ 目录)
+    #   - Zygisk Next 早期版本: bin/zygiskd64
+    if [ "$ok" -eq 0 ]; then
+        local dir="" name="" f=""
+        for dir in /data/adb/modules/*; do
+            [ -d "$dir" ] || continue
+            name="$(basename "$dir")"
+            [ "$name" = "FontMM" ] && continue
+            [ -f "$dir/disable" ] && continue
 
-    if [ -z "$version_code" ]; then
-        log "注意: 无法读取 FontLoader 版本号, 建议更新到最新版"
-        log "前往 $fontloader_github 更新 FontLoader"
-        CONFIRM_FONTLOADER_RISK "无法确认 FontLoader 版本。"
-        return 0
+            local hit=""
+            if [ -d "$dir/zygisk" ]; then
+                hit="zygisk/"
+            else
+                for f in "$dir"/lib64/libzygisk.so "$dir"/lib/libzygisk.so \
+                    "$dir"/bin/zygisk-ptrace64 "$dir"/bin/zygiskd64; do
+                    if [ -f "$f" ]; then
+                        hit="${f#"$dir"/}"
+                        break
+                    fi
+                done
+            fi
+
+            [ -z "$hit" ] && continue
+            log_succ "检测到 Zygisk 提供者: $name ($hit)"
+            ok=1
+            break
+        done
     fi
 
-    if [ "$version_code" -lt 33 ] 2>/dev/null; then
-        log "注意: 你的 FontLoader 版本过低, 建议更新到 v1.2.3+"
-        log "前往 $fontloader_github 更新 FontLoader"
-        CONFIRM_FONTLOADER_RISK "当前 FontLoader 版本低于 v1.2.3。"
-    else
-        log_succ "FontLoader 版本正常"
+    if [ "$ok" -eq 0 ]; then
+        log_warn "未检测到可用的 Zygisk 环境"
+        log "模块的字体预加载依赖 Zygisk, 缺少时被卸载模块的应用可能字体异常"
+        log "请启用 Magisk 内置 Zygisk, 或安装 Zygisk Next / ReZygisk"
+        CONFIRM_RISK "未检测到 Zygisk 环境" "字体预加载不会生效, 被 DenyList 的应用可能字体显示异常"
     fi
 }
 
@@ -255,13 +266,72 @@ system/system_ext/etc/fonts_ule.xml"
     fi
 }
 
+# ---------- 判断 FontLoader ----------
+# 本模块已内置字体预加载 (zygisk/arm64-v8a.so), 与外部 FontLoader 模块功能重叠。
+# 两者同时启用会重复预热、并可能互相干扰, 因此检测到旧 FontLoader 时建议禁用它。
+# 禁用方式: 在其模块目录放置 disable 文件 (模块的通用停用约定, 重启后生效),
+# 不删除其数据, 用户可随时移除该文件恢复。
+DISABLE_OLD_FONTLOADER() {
+    local found=""
+    local hit=""
+
+    # 按目录名候选 + 内容特征双重识别:
+    #   - RikkaW/FontLoader 原版: 模块目录名多为 fontloader
+    #   - JingMatrix/FontLoader:  build.gradle 中 moduleId = 'font-loader'
+    #   - 兜底: 扫描各模块 module.prop 描述中明确含 FontLoader 字样者
+    local names="fontloader font-loader font_loader"
+
+    local name="" dir=""
+    for name in $names; do
+        dir="/data/adb/modules/$name"
+        if [ -d "$dir" ]; then
+            hit="$name"
+            break
+        fi
+    done
+
+    # 目录名未命中时, 扫描其它模块的 module.prop 描述
+    if [ -z "$hit" ]; then
+        local d="" prop=""
+        for d in /data/adb/modules/*; do
+            [ -d "$d" ] || continue
+            [ "$(basename "$d")" = "FontMM" ] && continue
+            prop="$d/module.prop"
+            [ -f "$prop" ] || continue
+            # 只认明确声明为 FontLoader 的模块, 避免误伤其他模块
+            if grep -qiE '^description=.*font.?loader' "$prop" 2>/dev/null; then
+                hit="$(basename "$d")"
+                break
+            fi
+        done
+    fi
+
+    if [ -n "$hit" ]; then
+        dir="/data/adb/modules/$hit"
+        if [ -f "$dir/disable" ]; then
+            log "外部 FontLoader ($hit) 已处于停用状态"
+        elif touch "$dir/disable" 2>/dev/null; then
+            log_succ "已停用外部 FontLoader 模块: $hit"
+            found="$hit"
+        else
+            log_warn "检测到外部 FontLoader ($hit) 但无法停用, 建议手动在管理器中关闭"
+            found="$hit"
+        fi
+    fi
+
+    if [ -n "$found" ]; then
+        log "本模块已内置字体预加载, 无需外部 FontLoader; 重启后以本模块为准"
+    fi
+}
+
 # ---------- 主流程 ----------
 MAIN() {
     CHECK_COLOROS
     if ! CHECK_META_MODULE; then
         log_err "元模块检查不通过"
     fi
-    CHECK_FONTLOADER
+    CHECK_ZYGISK_ENV
+    DISABLE_OLD_FONTLOADER
 
     echo && log "开始准备字体..."
     DETECT_UPDATE_MODE
@@ -269,6 +339,11 @@ MAIN() {
 
     # 同步派生字体配置 (设备 XML 扫描 + fontmm-wght -sync)
     SYNC_FONT_XMLS
+
+    # 校验内置的 Zygisk 字体预加载模块存在 (缺失则 DenyList 应用可能字体异常)
+    if [ ! -f "$MODPATH/zygisk/arm64-v8a.so" ]; then
+        log_warn "缺少 zygisk/arm64-v8a.so, 字体预加载不可用 (DenyList 应用可能字体异常)"
+    fi
 
     # 备份模块内嵌的补充字库 Emoji 字体, 供用户清除 emoji 槽位时恢复
     if [ -f "$MODPATH/system/fonts/NotoColorEmoji.ttf" ] && [ ! -f "$MODPATH/backup/NotoColorEmoji.ttf" ]; then

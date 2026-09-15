@@ -17,3 +17,10 @@ src/system/etc/fonts_base.xml
 src/system/etc/fonts_ule.xml
 src/system/etc/font_fallback.xml
 src/system/system_ext/
+
+# Zygisk 模块产物 (由 dev/build-zygisk.mjs 生成)
+src/zygisk/
+native/build/
+
+# 编辑器 C++ 索引数据 (由 dev/build-zygisk.mjs 生成)
+compile_commands.json
