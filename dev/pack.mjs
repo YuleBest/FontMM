@@ -6,11 +6,12 @@
 //   _template: FONTS/ 为空目录, 适合更新已有模块 (customize.sh 从旧模块继承字体)
 //
 // 流程: 编译 fontmm-wght (Go) 与 Zygisk 模块 (C++) -> 生成 SHA256SUMS
-//       -> 打包两版 -> 校验产物 -> 生成发布校验文件
+//       -> 打包两版 (复用预压缩缓存) -> 校验产物 -> 生成发布校验文件
 //
-// 用法: node dev/pack.mjs [--skip-go] [--skip-zygisk]
+// 用法: node dev/pack.mjs [--skip-go] [--skip-zygisk] [--no-cache]
 //   --skip-go:     跳过 Go 交叉编译 (CI 中已单独构建时使用)
 //   --skip-zygisk: 跳过 Zygisk 模块编译 (无 NDK 或已构建好时使用)
+//   --no-cache:    禁用预压缩缓存 (用于验证缓存与非缓存产物一致)
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { log, die, stopwatch } from './lib/log.mjs';
@@ -18,10 +19,15 @@ import { ROOT, SRC_DIR, DIST_DIR, DERIVED_XML_RELS, readVersion, safeFileVersion
 import { packDir, listEntries, indexZip, hashFile } from './lib/zip.mjs';
 import { run, hasCommand } from './lib/exec.mjs';
 import { buildWght, wghtBinRel, WGHT_BIN } from './lib/go.mjs';
+import { subtreeKey, openCache, saveCacheFromZip } from './lib/zipcache.mjs';
 import { findNdk, buildZygiskModule, TARGET_ABI } from './lib/ndk.mjs';
 
 const skipGo = process.argv.includes('--skip-go');
 const skipZygisk = process.argv.includes('--skip-zygisk');
+/** 预压缩缓存开关 (--no-cache 关闭; CI 中禁用可避免缓存目录带来的不确定性) */
+const CACHE_ENABLED = !process.argv.includes('--no-cache');
+/** 打包压缩级别 (与原 zip -2 一致); 也是缓存片段的压缩级别, 变更会使缓存失效 */
+const COMPRESS_LEVEL = 2;
 const elapsed = stopwatch();
 
 // 可复现打包: 设置 SOURCE_DATE_EPOCH 时, 所有 zip 条目使用该固定时间戳,
@@ -103,9 +109,38 @@ await Promise.all([
   fsp.rm(`${tplOut}.sha256`, { force: true }),
 ]);
 
+// ---------- 4. 预压缩缓存 ----------
+// system/fonts/ 占整包压缩量的 ~70%, 而它在多数构建中不变 (仅发布字体时才动)。
+// 内容未变时直接复用已压缩数据 (passThrough, 不重新 deflate), 显著缩短打包时间。
+//
+// 缓存按子树分别管理, 以「文件名 + 大小 + mtime + 权限位」为指纹; 任一项变化即失效,
+// 回退为现场压缩并重建缓存。缓存目录 dev/.cache/ 不入库, 缺失/损坏一律优雅降级。
+const fontCacheSegment = 'system-fonts';
+const fontCachePrefix = 'system/fonts/';
+const fontsDir = path.join(SRC_DIR, 'system', 'fonts');
+
+let fontCache = null;
+if (CACHE_ENABLED) {
+  const cacheKey = await subtreeKey(fontsDir);
+  fontCache = await openCache(fontCacheSegment, cacheKey);
+  if (fontCache) {
+    log.ok(`命中预压缩缓存 (${fontCache.entries.length} 个字体文件, 跳过压缩)`);
+  } else {
+    log.info('无可用预压缩缓存, 本次将现场压缩并在完成后建立缓存');
+  }
+}
+
 log.step('打包 preplace 版 (含预置字体)...');
-const pre = await packDir({ srcDir: SRC_DIR, outFile: preOut, exclude, fixedDate });
-log.ok(`preplace: ${pre.files} 文件 / ${pre.dirs} 目录`);
+const pre = await packDir({
+  srcDir: SRC_DIR,
+  outFile: preOut,
+  exclude,
+  fixedDate,
+  cache: fontCache ?? undefined,
+});
+log.ok(
+  `preplace: ${pre.files} 文件 / ${pre.dirs} 目录${pre.reused ? ` (复用缓存 ${pre.reused} 个)` : ''}`,
+);
 
 log.step('打包 template 版 (FONTS 目录为空)...');
 // 排除 FONTS/ 下的字体文件, 但保留目录条目本身 (设备端需要该目录存在)
@@ -115,8 +150,38 @@ const tpl = await packDir({
   exclude,
   excludeFilePrefixes: ['FONTS/'],
   fixedDate,
+  cache: fontCache ?? undefined,
 });
-log.ok(`template: ${tpl.files} 文件 / ${tpl.dirs} 目录`);
+log.ok(
+  `template: ${tpl.files} 文件 / ${tpl.dirs} 目录${tpl.reused ? ` (复用缓存 ${tpl.reused} 个)` : ''}`,
+);
+await fontCache?.close();
+
+// 未命中且本次确实压缩了字体文件时, 用刚产出的产物建立缓存。
+// 以 preplace 包为缓存来源 (它含完整的 system/fonts/); 需确认确实包含字体条目。
+if (CACHE_ENABLED && !fontCache && pre.reused === 0) {
+  const cacheKey = await subtreeKey(fontsDir);
+  // 从 preplace 包中抽取 system/fonts/ 部分作为缓存片段:
+  // 直接把整包复制过去会让缓存体积翻倍, 故重建一个只含该子树的 zip。
+  log.step('建立预压缩缓存...');
+  const segTmp = path.join(DIST_DIR, '.cache-segment.zip');
+  try {
+    await packDir({
+      srcDir: SRC_DIR,
+      outFile: segTmp,
+      exclude,
+      onlyPrefixes: [fontCachePrefix],
+      level: COMPRESS_LEVEL,
+      fixedDate,
+    });
+    const ok = await saveCacheFromZip(fontCacheSegment, cacheKey, segTmp, COMPRESS_LEVEL);
+    if (ok) log.ok('缓存已建立 (下次打包将自动复用)');
+  } catch (e) {
+    log.warn(`建立缓存失败 (不影响本次构建): ${e.message}`);
+  } finally {
+    await fsp.rm(segTmp, { force: true });
+  }
+}
 
 // ---------- 4. 校验产物 ----------
 // 取代原 shell 的 unzip -l / unzip -p 检查: 直接回读 zip 内容并与源文件比对,

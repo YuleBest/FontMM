@@ -272,8 +272,29 @@ pnpm zygisk:build        # 仅交叉编译 Zygisk 模块 -> src/zygisk/
 | `dev/ci.mjs` | 代码检查（结构校验 + shellcheck/shfmt + 前端 lint/format/类型） |
 | `dev/empty-font.mjs` | 重新生成占位字体文件 |
 | `dev/sync-fonts-xml.mjs` | 本地生成派生字体配置（仅调试用） |
+| `dev/cache.mjs` | 预压缩缓存管理（status / clean / test） |
 | `dev/lib/zip.mjs` | ZIP 读写封装（打包 + 回读校验） |
+| `dev/lib/zipcache.mjs` | 预压缩缓存（复用已压缩数据，跳过 deflate） |
 | `dev/lib/ndk.mjs` | NDK 定位与 C++ 交叉编译（含产物兼容性校验） |
+
+### 预压缩缓存
+
+打包耗时几乎全在压缩，而 `system/fonts/`（131MB 原始数据、压缩后 71MB）占了压缩量的
+约 70%，且它只在发布新字体时才会变化。因此 `dev/pack.mjs` 会把这部分**预先压缩并缓存**到
+`dev/.cache/`，后续打包直接搬运已压缩数据（不重新 deflate），本地构建从约 28s 降到约 13s。
+
+缓存以「文件名 + 大小 + mtime + 权限位」为指纹，任一项变化即失效并自动重建。它是纯本地的
+构建加速，**不入库、不影响产物**：命中缓存与不使用缓存产出的 zip 逐字节相同（可用
+`SOURCE_DATE_EPOCH` 固定时间戳复现验证）。缓存缺失、损坏或版本不符时一律回退为现场压缩。
+
+```bash
+pnpm cache:status   # 查看缓存片段、大小、文件数
+pnpm cache:test     # 校验缓存内容与源文件逐一相符
+pnpm cache:clean    # 清空缓存
+node dev/pack.mjs --no-cache   # 本次构建禁用缓存
+```
+
+> CI 中建议加 `--no-cache`：缓存对一次性构建没有收益，也避免引入与机器相关的状态。
 
 ### Zygisk 字体预加载模块
 

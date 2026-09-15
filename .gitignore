@@ -24,3 +24,6 @@ native/build/
 
 # 编辑器 C++ 索引数据 (由 dev/build-zygisk.mjs 生成)
 compile_commands.json
+
+# 预压缩构建缓存 (dev/pack.mjs 自动生成, 体积大且与机器相关的 mtime 绑定)
+dev/.cache/

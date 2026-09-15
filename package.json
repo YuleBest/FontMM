@@ -20,6 +20,9 @@
     "go:build:local": "cd golang && go build -o /tmp/fontmm-wght ./cmd/fontmm-wght",
     "zygisk:build": "node dev/build-zygisk.mjs",
     "sha256": "node dev/gen-sha256.mjs",
+    "cache:status": "node dev/cache.mjs status",
+    "cache:clean": "node dev/cache.mjs clean",
+    "cache:test": "node dev/cache.mjs test",
     "sync:fonts-xml": "node dev/sync-fonts-xml.mjs",
     "empty-font": "node dev/empty-font.mjs"
   },

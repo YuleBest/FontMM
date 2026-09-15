@@ -13,6 +13,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { Writable } from 'node:stream';
+import { log } from './log.mjs';
 
 /** 普通文件权限位下限 (含 S_IFREG) */
 export const FILE_MODE = 0o100644;
@@ -73,20 +74,27 @@ async function walk(root) {
  * @param {string} opts.outFile 输出 zip 路径
  * @param {string[]} [opts.exclude] Info-ZIP 风格 glob, 命中的条目被排除
  * @param {string[]} [opts.excludeFilePrefixes] 仅排除这些前缀下的**文件** (保留目录条目)
+ * @param {string[]} [opts.onlyPrefixes] 只收录这些前缀下的条目 (其他一律跳过)。
+ *        用于单独打包某个子树以建立缓存: 条目名仍是相对 srcDir 的完整路径,
+ *        与整包打包时完全一致, 因此可以按路径直接复用。
  * @param {number} [opts.level] 压缩级别 0-9 (默认 2, 与原 zip -2 一致)
  * @param {Date} [opts.fixedDate] 固定所有条目的时间戳 (SOURCE_DATE_EPOCH 式可复现打包);
  *        不传则沿用源文件 mtime, 与 Info-ZIP 行为一致
  * @param {(rel: string) => void} [opts.onEntry] 每个文件写入后的回调
- * @returns {Promise<{ files: number, dirs: number }>}
+ * @param {{ get(rel: string): { compressed: () => Promise<Blob>, crc32: number, uncompressedSize: number } | undefined }} [opts.cache]
+ *        预压缩缓存 (见 dev/lib/zipcache.mjs): 命中的条目直接搬运已压缩数据, 不做 deflate
+ * @returns {Promise<{ files: number, dirs: number, reused: number }>}
  */
 export async function packDir({
   srcDir,
   outFile,
   exclude = [],
   excludeFilePrefixes = [],
+  onlyPrefixes,
   level = 2,
   fixedDate,
   onEntry,
+  cache,
 }) {
   const globs = compileGlobs(exclude);
   const entries = await walk(srcDir);
@@ -104,9 +112,11 @@ export async function packDir({
 
   let files = 0;
   let dirs = 0;
+  let reused = 0;
   try {
     for (const entry of entries) {
       if (globs.some((re) => re.test(entry.rel))) continue;
+      if (onlyPrefixes && !onlyPrefixes.some((p) => entry.rel.startsWith(p))) continue;
       if (
         entry.type === 'file' &&
         excludeFilePrefixes.some((prefix) => entry.rel.startsWith(prefix))
@@ -121,16 +131,48 @@ export async function packDir({
           lastModDate: dateOf(stat),
         });
         dirs++;
-      } else {
-        // BlobReader + openAsBlob: 大字体文件流式读取, 不整体载入内存
-        const blob = await fs.openAsBlob(entry.abs);
-        await writer.add(entry.rel, new zip.BlobReader(blob), {
-          unixMode: fileModeOf(stat),
-          lastModDate: dateOf(stat),
-        });
-        files++;
-        onEntry?.(entry.rel);
+        continue;
       }
+
+      const lastModDate = dateOf(stat);
+      const unixMode = fileModeOf(stat);
+
+      // 预压缩缓存: 命中则直接搬运已压缩数据 (passThrough), 跳过 deflate。
+      // 需同时提供下列字段, 否则 zip.js 在没有压缩阶段的情况下无法写出正确的条目头:
+      //   uncompressedSize / crc32 / compressionMethod —— 条目头必需
+      //   level —— zip.js 把压缩级别编码进通用标志位 (bit 1-2), 不传会与现场
+      //            压缩的产物产生字节差异 (整包哈希不一致)
+      const cached = cache?.get(entry.rel);
+      if (cached) {
+        try {
+          const compressed = await cached.compressed();
+          await writer.add(entry.rel, new zip.BlobReader(compressed), {
+            unixMode,
+            lastModDate,
+            passThrough: true,
+            uncompressedSize: cached.uncompressedSize,
+            crc32: cached.crc32,
+            compressionMethod: 8, // deflate, 与压缩期一致
+            level,
+          });
+          files++;
+          reused++;
+          onEntry?.(entry.rel);
+          continue;
+        } catch (e) {
+          // 单条搬运失败不应中断构建: 回退为现场压缩
+          log.warn(`缓存条目不可用, 回退现场压缩: ${entry.rel} (${e.message})`);
+        }
+      }
+
+      // 未命中: 现场压缩。BlobReader + openAsBlob 流式读取, 不整体载入内存
+      const blob = await fs.openAsBlob(entry.abs);
+      await writer.add(entry.rel, new zip.BlobReader(blob), {
+        unixMode,
+        lastModDate,
+      });
+      files++;
+      onEntry?.(entry.rel);
     }
     await writer.close();
     await closed;
@@ -139,7 +181,7 @@ export async function packDir({
     throw e;
   }
 
-  return { files, dirs };
+  return { files, dirs, reused };
 }
 
 /** 打开 zip 读取器 (调用方负责 close) */
