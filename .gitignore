@@ -29,3 +29,13 @@ compile_commands.json
 
 # 预压缩构建缓存 (dev/pack.mjs 自动生成, 体积大且与机器相关的 mtime 绑定)
 dev/.cache/
+
+# Pyodide 运行时: 由 web/scripts/sync-pyodide.mjs 在构建时从 npm 的 pyodide
+# 包复制 (与依赖同源, 避免仓库里留一份易过期的副本)。
+# 例外: 两个 wheel 不在 npm 包内, 仍需随仓库提供, 故不在此忽略。
+web/public/pyodide/pyodide.asm.mjs
+web/public/pyodide/pyodide.asm.wasm
+web/public/pyodide/pyodide.js
+web/public/pyodide/pyodide.mjs
+web/public/pyodide/pyodide-lock.json
+web/public/pyodide/python_stdlib.zip

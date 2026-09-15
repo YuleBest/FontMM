@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "sync:pyodide": "node scripts/sync-pyodide.mjs",
+    "dev": "npm run sync:pyodide && vite",
+    "build": "npm run sync:pyodide && vite build",
     "preview": "vite preview",
     "lint": "oxlint",
     "fmt": "oxfmt",
