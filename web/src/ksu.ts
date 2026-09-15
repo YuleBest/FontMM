@@ -100,19 +100,36 @@ async function mockExec(command: string): Promise<ExecResult> {
     return slow('name=KernelSU MetaModule\nversion=v1.0\nauthor=KernelSU');
   }
 
-  // 小米主题字体工具: 搜索/详情/下载 (模拟)
+  // 小米主题字体工具: 搜索 (模拟)
+  // 结构与真实接口一致: apiData.cards[].items[].schema.clicks[] 携带 title/link/pic,
+  // apiData.hasMore 标识是否还有下一页
   if (command.includes('thm.market.intl.xiaomi.com')) {
+    // 第二页返回空, 用于验证「下一页」按钮状态
+    if (/[?&]page=1\b/.test(command)) {
+      return slow(JSON.stringify({ apiData: { hasMore: false, cards: [] } }));
+    }
     return slow(
       JSON.stringify({
         apiData: {
+          hasMore: true,
           cards: [
             {
               items: [
                 {
+                  type: 'endlessList',
                   schema: {
+                    type: 'Font',
                     clicks: [
-                      { title: 'MiSans Global (模拟)', link: 'mock-font-1' },
-                      { title: 'OPPO Sans (模拟)', link: 'mock-font-2' },
+                      {
+                        title: 'MiSans Global (模拟)',
+                        link: 'mock-font-1',
+                        pic: 'ThemeMarket/mock-pic-1',
+                      },
+                      {
+                        title: 'OPPO Sans (模拟)',
+                        link: 'mock-font-2',
+                        pic: 'ThemeMarket/mock-pic-2',
+                      },
                     ],
                   },
                 },
