@@ -1,5 +1,15 @@
 # Changelog
 
+## v26.8.0-beta.8
+
+- **修复只选中文（或任一单槽位）字体时 WebUI 状态全空**（issue #11）：槽位与字重覆写被误判为未设置，实际字体已生效
+  - 成因：作为字体安装结果的判据，逐槽位复制脚本的最后一行条件失败导致整段退出码非 0
+  - 感谢 [@HelloCxin](https://github.com/HelloCxin) 提供详细的复现步骤
+- **修复 Zygisk 提供者误判**：安装了 Zygisk Next 时，首页的字体预热器状态可能显示为另一个普通 Zygisk 模块（如 Hide My Applist）
+  - 成因：此前以 `zygisk/` 目录判定提供者，而该目录是任何 Zygisk 模块（含本模块自身的消费者角色）都有的标记
+  - 现改用提供者专有产物判定（`libzygisk.so` / `zygiskd` / `libzn_loader.so` 等），对照 Zygisk Next 实际安装包核实
+- **仓库瘦身**：Pyodide 运行时（约 12MB）不再入库，改由构建脚本从 npm 依赖复制，消除仓库内一份易过期的混淆副本
+
 ## v26.8.0-beta.7
 
 - **英文槽位自动子集化**（issue #10）：所选英文字体若自带中文字形，应用时自动裁剪为纯拉丁子集
