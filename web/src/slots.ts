@@ -151,6 +151,12 @@ export function renderSlots() {
       const slot = slots[btn.dataset.key as SlotKey];
       slot.path = null;
       slot.fileName = '';
+      // 解析结果一并清掉: 否则字重映射的轴范围 (取各槽位最小跨度) 与可变字体标记
+      // 会停留在被删掉的字体上 —— 删掉 200-900 的字体后仍只能选 200-900
+      slot.sizeText = undefined;
+      slot.isVariable = false;
+      slot.wghtRange = undefined;
+      slot.subsetSizeText = undefined;
       renderSlots();
     });
   });
