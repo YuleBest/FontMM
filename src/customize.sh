@@ -190,10 +190,19 @@ CHECK_ZYGISK_ENV() {
         fi
     fi
 
-    # 独立 Zygisk 提供者模块。各实现的内部布局不同, 逐一识别 (任一命中即算可用):
-    #   - Zygisk Next / Magisk 兼容第三方: 自带 zygisk/ 目录
-    #   - ReZygisk: lib64/libzygisk.so + bin/zygisk-ptrace64 (无 zygisk/ 目录)
-    #   - Zygisk Next 早期版本: bin/zygiskd64
+    # 独立 Zygisk 提供者模块。判据是提供者**独有**的文件, 而不是目录名或 zygisk/ 目录 ——
+    # 后者是「Zygisk 模块」(消费者) 的标志, 任何自带 zygisk/<abi>.so 的模块都有,
+    # 本模块自己也有。曾据此误判 (把 Hide My Applist 之类的消费者当成提供者)。
+    #
+    # 判据取自两个提供者的实际安装布局 (核对过发布包与安装脚本):
+    #   Zygisk Next (模块 ID: zygisksu)
+    #     bin/zygiskd64   守护进程
+    #     lib64/libzygisk.so / lib64/libzn_loader.so / lib64/libpayload.so
+    #   ReZygisk (模块 ID: rezygisk)
+    #     bin/zygiskd64 / bin/zygisk-ptrace64
+    #     lib64/libzygisk.so
+    # 共同且充分的特征: lib{64}/libzygisk.so (核心库) 或 bin/zygiskd{64,32} (守护进程)。
+    # 这两个文件名是提供者专有的, 普通 Zygisk 模块不会用到。
     if [ "$ok" -eq 0 ]; then
         local dir="" name="" f=""
         for dir in /data/adb/modules/*; do
@@ -203,17 +212,14 @@ CHECK_ZYGISK_ENV() {
             [ -f "$dir/disable" ] && continue
 
             local hit=""
-            if [ -d "$dir/zygisk" ]; then
-                hit="zygisk/"
-            else
-                for f in "$dir"/lib64/libzygisk.so "$dir"/lib/libzygisk.so \
-                    "$dir"/bin/zygisk-ptrace64 "$dir"/bin/zygiskd64; do
-                    if [ -f "$f" ]; then
-                        hit="${f#"$dir"/}"
-                        break
-                    fi
-                done
-            fi
+            for f in "$dir"/lib64/libzygisk.so "$dir"/lib/libzygisk.so \
+                "$dir"/bin/zygiskd64 "$dir"/bin/zygiskd32 "$dir"/bin/zygiskd \
+                "$dir"/lib64/libzn_loader.so "$dir"/lib/libzn_loader.so; do
+                if [ -f "$f" ]; then
+                    hit="${f#"$dir"/}"
+                    break
+                fi
+            done
 
             [ -z "$hit" ] && continue
             log_succ "检测到 Zygisk 提供者: $name ($hit)"

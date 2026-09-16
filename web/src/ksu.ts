@@ -176,9 +176,9 @@ async function mockExec(command: string): Promise<ExecResult> {
     );
   }
 
-  // 字体预热器状态检测 (模拟: 库已安装 + 检测到 Zygisk Next)
+  // 字体预热器状态检测 (模拟: 库已安装 + 检测到 Zygisk Next, 模块 ID 用真实的 zygisksu)
   if (command.includes('LIB:yes') && command.includes('PROV:')) {
-    return slow('LIB:yes\nMAGISK:na\nPROV:zygisknext');
+    return slow('LIB:yes\nMAGISK:na\nPROV:zygisksu');
   }
 
   if (command.includes('ro.product.model')) return slow('Pixel 8 Pro (模拟设备)');
@@ -334,8 +334,13 @@ export async function getPreloaderStatus(): Promise<PreloaderStatus> {
       `if [ -f '${ZYGISK_LIB}' ]; then echo 'LIB:yes'; else echo 'LIB:no'; fi`,
       // 2. Magisk 内置 Zygisk 开关 (值为 1 表示启用)
       `if [ -f /data/adb/magisk/magisk ]; then v=$(/data/adb/magisk/magisk --sqlite "SELECT value FROM settings WHERE key='zygisk';" 2>/dev/null | tr -d '\\r'); if [ "$v" = "1" ]; then echo 'MAGISK:yes'; else echo 'MAGISK:no'; fi; else echo 'MAGISK:na'; fi`,
-      // 3. 独立 Zygisk 提供者模块 (各实现布局不同, 逐一识别)
-      `for d in /data/adb/modules/*; do [ -d "$d" ] || continue; n=$(basename "$d"); [ "$n" = "FontMM" ] && continue; [ -f "$d/disable" ] && continue; if [ -d "$d/zygisk" ]; then echo "PROV:$n"; elif [ -f "$d/lib64/libzygisk.so" ] || [ -f "$d/lib/libzygisk.so" ]; then echo "PROV:$n"; elif [ -f "$d/bin/zygisk-ptrace64" ] || [ -f "$d/bin/zygiskd64" ]; then echo "PROV:$n"; fi; done`,
+      // 3. 独立 Zygisk 提供者模块
+      //    判据是提供者**独有**的文件: lib{64}/libzygisk.so (核心库) 或
+      //    bin/zygiskd{64,32} (守护进程)。注意不能以 zygisk/ 目录判断 ——
+      //    那是「Zygisk 模块」(消费者) 的标志, 任何自带 zygisk/<abi>.so 的
+      //    模块都有 (本模块自己也有), 据此判断会把消费者误认成提供者。
+      //    这些文件名取自 Zygisk Next 与 ReZygisk 的实际安装布局。
+      `for d in /data/adb/modules/*; do [ -d "$d" ] || continue; n=$(basename "$d"); [ "$n" = "FontMM" ] && continue; [ -f "$d/disable" ] && continue; for f in "$d/lib64/libzygisk.so" "$d/lib/libzygisk.so" "$d/bin/zygiskd64" "$d/bin/zygiskd32" "$d/bin/zygiskd" "$d/lib64/libzn_loader.so" "$d/lib/libzn_loader.so"; do if [ -f "$f" ]; then echo "PROV:$n"; break; fi; done; done`,
     ].join('; ');
 
     const { errno, stdout } = await exec(cmd);
@@ -360,6 +365,8 @@ export async function getPreloaderStatus(): Promise<PreloaderStatus> {
       // 模块目录名可读性较差 (如 rezygisk), 做一次友好化映射
       const friendly: Record<string, string> = {
         rezygisk: 'ReZygisk',
+        // Zygisk Next 的模块 ID 是 zygisksu (取自其 module.prop)
+        zygisksu: 'Zygisk Next',
         zygisknext: 'Zygisk Next',
         'zygisk-next': 'Zygisk Next',
       };
