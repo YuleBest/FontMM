@@ -220,7 +220,7 @@ func TestApplyToDirSync(t *testing.T) {
 		mkfile(rel, "<familyset>\n</familyset>\n")
 	}
 
-	changed, err := ApplyToDir(dir, 2, 150, 700, nil, true, false)
+	changed, err := ApplyToDir(dir, 2, 150, 700, nil, true)
 	if err != nil {
 		t.Fatalf("ApplyToDir: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestApplyToDirSyncMode0(t *testing.T) {
 	if err := os.WriteFile(dir+"/"+SourceXMLRel, []byte(base), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	changed, err := ApplyToDir(dir, 0, 100, 900, nil, true, false)
+	changed, err := ApplyToDir(dir, 0, 100, 900, nil, true)
 	if err != nil {
 		t.Fatalf("ApplyToDir: %v", err)
 	}
@@ -271,179 +271,5 @@ func TestApplyToDirSyncMode0(t *testing.T) {
 		if string(data) != base {
 			t.Errorf("派生配置 %s 内容不一致", rel)
 		}
-	}
-}
-
-// ---------- 固定行距字距的度量载体 (issue #17) ----------
-
-// 四个生效家族各带一个条目, 用于验证载体插入位置与数量
-const metricsSampleXML = `<familyset version="23">
-    <family name="sans-serif">
-        <font weight="400" style="normal">SysFont-Regular.ttf
-            <axis tag="wght" stylevalue="400" />
-        </font>
-    </family>
-    <family name="sys-sans-en">
-        <font weight="400" style="normal"  postScriptName="OPlusSansEn" >SysSans-En-Regular.ttf
-            <axis tag="wght" stylevalue="400"/>
-        </font>
-    </family>
-    <family lang="zh-Hans">
-        <font weight="400" style="normal" fallbackFor="serif"
-            postScriptName="OPPO_Sans_4.0_SC">SysSans-Hans-Regular.ttf
-        </font>
-    </family>
-    <family lang="zh-Hant,zh-Bopo">
-        <font weight="400" style="normal">SysSans-Hant-Regular.ttf
-        </font>
-    </family>
-</familyset>
-`
-
-// 开启: 每个家族首位都有全 9 档字重的载体条目, 且排在原条目之前
-func TestApplyMetricsInsert(t *testing.T) {
-	on := ApplyMetrics(metricsSampleXML, true)
-	if got := strings.Count(on, MetricsFontFile); got != 9*len(FamilySpecs) {
-		t.Fatalf("载体条目数 = %d, want %d", got, 9*len(FamilySpecs))
-	}
-	// 逐个家族检查: 载体必须出现在家族内第一个原条目之前
-	for _, spec := range FamilySpecs {
-		famStart := strings.Index(on, spec.openTag)
-		if famStart < 0 {
-			t.Fatalf("找不到家族 %s", spec.openTag)
-		}
-		famEnd := strings.Index(on[famStart:], "</family>")
-		block := on[famStart : famStart+famEnd]
-		firstCarrier := strings.Index(block, MetricsFontFile)
-		firstOriginal := strings.Index(block, spec.fontFile)
-		if firstCarrier < 0 || firstOriginal < 0 || firstCarrier > firstOriginal {
-			t.Errorf("%s: 载体未排在家族首位 (carrier=%d original=%d)", spec.openTag, firstCarrier, firstOriginal)
-		}
-		for _, w := range Weights {
-			if !strings.Contains(block, fmt.Sprintf(`<font weight="%d" style="normal">%s</font>`, w, MetricsFontFile)) {
-				t.Errorf("%s: 缺少字重 %d 的载体条目", spec.openTag, w)
-			}
-		}
-	}
-	// 结构完整性
-	if open, closeN := strings.Count(on, "<family "), strings.Count(on, "</family>"); open != closeN {
-		t.Errorf("family 标签不平衡: open=%d close=%d", open, closeN)
-	}
-}
-
-// 关闭: 恢复到与原始 XML 逐字节一致 (先移除再插入, 不留残余)
-func TestApplyMetricsRemoveRestores(t *testing.T) {
-	on := ApplyMetrics(metricsSampleXML, true)
-	off := ApplyMetrics(on, false)
-	if off != metricsSampleXML {
-		t.Errorf("关闭后未还原原 XML:\n%s", off)
-	}
-}
-
-// 幂等: 重复开启结果一致; 原 XML 无标记时关闭也不改动
-func TestApplyMetricsIdempotent(t *testing.T) {
-	once := ApplyMetrics(metricsSampleXML, true)
-	twice := ApplyMetrics(once, true)
-	if once != twice {
-		t.Errorf("重复开启结果不一致")
-	}
-	if off := ApplyMetrics(metricsSampleXML, false); off != metricsSampleXML {
-		t.Errorf("未开启过的 XML 在关闭时被改动")
-	}
-}
-
-// 家族缺失时不应报错, 也不应改动其余内容
-func TestApplyMetricsMissingFamily(t *testing.T) {
-	xml := "<familyset>\n    <family name=\"serif\">\n    </family>\n</familyset>\n"
-	if got := ApplyMetrics(xml, true); got != xml {
-		t.Errorf("无生效家族时被改动:\n%s", got)
-	}
-}
-
-// 与字重覆写叠加: 两者互不破坏
-func TestApplyMetricsWithWghtMode(t *testing.T) {
-	wghtDone := ApplyWghtMode(metricsSampleXML, 1, 300, 700, nil)
-	both := ApplyMetrics(wghtDone, true)
-	if !strings.Contains(both, MetricsFontFile) {
-		t.Fatal("叠加后丢失载体条目")
-	}
-	// 关闭载体后应回到字重覆写的结果
-	if got := ApplyMetrics(both, false); got != wghtDone {
-		t.Errorf("关闭载体后未回到字重覆写结果:\n%s", got)
-	}
-}
-
-// -metrics auto: 读 FONTS/metrics.txt, 内容为 "1" 才开启
-func TestResolveMetrics(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "FONTS"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	cases := []struct {
-		mode, file string
-		want       bool
-	}{
-		{"on", "", true},
-		{"off", "1", false},
-		{"auto", "", false},   // 文件不存在
-		{"auto", "0", false},  // 显式关闭
-		{"auto", "1", true},   // 开启
-		{"auto", "1\n", true}, // 容忍行尾换行
-	}
-	for _, c := range cases {
-		p := filepath.Join(dir, "FONTS", "metrics.txt")
-		if c.file == "" {
-			_ = os.Remove(p)
-		} else if err := os.WriteFile(p, []byte(c.file), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if got := ResolveMetrics(dir, c.mode); got != c.want {
-			t.Errorf("ResolveMetrics(mode=%q, file=%q) = %v, want %v", c.mode, c.file, got, c.want)
-		}
-	}
-}
-
-// 载体文件缺失时不插入条目 (避免 fonts.xml 引用不存在的字体)
-func TestApplyToDirMetricsWithoutFile(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(dir+"/system/etc", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(dir+"/"+SourceXMLRel, []byte(metricsSampleXML), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ApplyToDir(dir, 0, 100, 900, nil, false, true); err != nil {
-		t.Fatalf("ApplyToDir: %v", err)
-	}
-	data, err := os.ReadFile(dir + "/" + SourceXMLRel)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), MetricsFontFile) {
-		t.Error("载体文件缺失时仍写入了条目")
-	}
-}
-
-// 载体文件存在时写入条目
-func TestApplyToDirMetricsWithFile(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(dir+"/system/fonts", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(dir+"/system/etc", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(dir+"/system/fonts/"+MetricsFontFile, []byte("stub"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(dir+"/"+SourceXMLRel, []byte(metricsSampleXML), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ApplyToDir(dir, 0, 100, 900, nil, false, true); err != nil {
-		t.Fatalf("ApplyToDir: %v", err)
-	}
-	data, _ := os.ReadFile(dir + "/" + SourceXMLRel)
-	if !strings.Contains(string(data), MetricsFontFile) {
-		t.Error("载体文件存在时未写入条目")
 	}
 }

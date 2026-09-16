@@ -21,8 +21,6 @@
 //       生成子集。默认保留拉丁/希腊/西里尔与常用符号;
 //       -minimal 仅保留 ASCII/西欧 (体积更小, 但希腊/西里尔会缺字);
 //       -keep-cjk 额外保留 CJK 区块 (默认不保留)。
-//   fontmm-subset -metrics -in <font.ttf> -out <carrier.ttf>
-//       把现成字体挖空: 只留度量与各类空格字形, 用作固定行距/字距的载体 (issue #17)。
 
 #include <cstdio>
 #include <cstdlib>
@@ -113,21 +111,6 @@ static unsigned countCoverage(hb_face_t *face, const Range (&ranges)[N]) {
     hb_set_destroy(faceUnicodes);
     return total;
 }
-
-// 度量载体模式 (-metrics, issue #17) 保留的码点: 仅各类空格。
-//
-// 目的不是裁文字, 而是把一份现成字体「内部挖空」: 只留 .notdef 与空格字形,
-// 行距与空格字宽等度量 (hhea / OS/2 / hmtx) 原样保留, 得到一个没有文字字形、
-// 却能提供标准行字距的度量载体, 作为 fonts.xml 家族首个条目充当 base 字体
-// (Android 的 paint 度量取自家族里与请求字重最接近的条目)。
-//
-// 为什么连空格也保留: 这是该字体唯一能影响「字距」的地方 —— 文字仍由用户
-// 选择的字体渲染, 只有空格宽度被钉在这份标准上。
-static const hb_codepoint_t kMetricsSpaceCodes[] = {
-    0x0020,  // 空格
-    0x00A0,  // 不换行空格
-    0x3000,  // 全角空格
-};
 
 // ---------- 行距度量改写 (-line-metrics, issue #17) ----------
 //
@@ -239,8 +222,9 @@ static unsigned unitsPerEm(const unsigned char *data, size_t size) {
 // 把行距总量缩放到 targetTotal (字体单位), 上下比例保持; 返回是否改动。
 // 支持字体集合 (.ttc/.otc): 逐个 face 处理, 按表偏移去重 —— 集合里多个 face 常共享
 // 同一份 hhea/OS/2, 重复改写会把已经缩放的度量再缩放一次。
-static bool scaleLineMetrics(std::vector<unsigned char> &buf, unsigned targetTotal, int &oldAsc,
-                             int &oldDesc, int &newAsc, int &newDesc, int &oldYMin, int &oldYMax) {
+static bool scaleLineMetrics(std::vector<unsigned char> &buf, unsigned targetTotal, bool tightenInk,
+                             int &oldAsc, int &oldDesc, int &newAsc, int &newDesc, int &oldYMin,
+                             int &oldYMax) {
     unsigned char *data = buf.data();
     size_t size = buf.size();
 
@@ -307,7 +291,7 @@ static bool scaleLineMetrics(std::vector<unsigned char> &buf, unsigned targetTot
         // SkFontMetrics.fTop/fBottom, 而那两个值取自 head 的包围盒)。字体包围盒虚高时
         // (某些字体被极少数大字形撑大), 段落就会多出一大圈空白 —— 只收紧、不放大,
         // 避免把正常字体的包围盒撑得比实际墨迹还大。
-        if (head.found && head.length >= 44 && !seen(patched, head.offset)) {
+        if (tightenInk && head.found && head.length >= 44 && !seen(patched, head.offset)) {
             const int yMin = rdI16(data, head.offset + 38);
             const int yMax = rdI16(data, head.offset + 42);
             if (oldYMax == 0 && oldYMin == 0) {
@@ -392,11 +376,9 @@ static void usage(const char *argv0) {
             "  %s -in <font.ttf> -out <out.ttf>     生成英文子集\n"
             "    [-minimal]                         仅保留 ASCII/西欧 (默认含希腊/西里尔)\n"
             "    [-keep-cjk]                        额外保留 CJK 区块 (默认不保留)\n"
-            "  %s -metrics -in <font.ttf> -out <out.ttf>\n"
-            "                                       挖空: 只留度量与空格, 用作行距字距载体\n"
             "  %s -line-metrics -in <font.ttf> -out <out.ttf> -line-total <permille>\n"
             "                                       把行距度量缩放到统一总量 (千分比 em)\n",
-            argv0, argv0, argv0, argv0);
+            argv0, argv0, argv0);
 }
 
 int main(int argc, char **argv) {
@@ -405,8 +387,8 @@ int main(int argc, char **argv) {
     const char *outPath = nullptr;
     bool keepCjk = false;
     bool minimal = false;
-    bool metricsMode = false;
     bool lineMetricsMode = false;
+    bool tightenInk = true;
     int lineTotal = 0;
 
     for (int i = 1; i < argc; i++) {
@@ -422,10 +404,10 @@ int main(int argc, char **argv) {
             keepCjk = true;
         } else if (strcmp(argv[i], "-minimal") == 0) {
             minimal = true;
-        } else if (strcmp(argv[i], "-metrics") == 0) {
-            metricsMode = true;
         } else if (strcmp(argv[i], "-line-metrics") == 0) {
             lineMetricsMode = true;
+        } else if (strcmp(argv[i], "-no-tighten-ink") == 0) {
+            tightenInk = false;
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             usage(argv[0]);
             return 0;
@@ -482,9 +464,32 @@ int main(int argc, char **argv) {
         unsigned target = static_cast<unsigned>(static_cast<long long>(upem) * lineTotal / 1000);
         int oldAsc = 0, oldDesc = 0, newAsc = 0, newDesc = 0;
         int oldYMin = 0, oldYMax = 0;
-        if (!scaleLineMetrics(buf, target, oldAsc, oldDesc, newAsc, newDesc, oldYMin, oldYMax)) {
+        if (!scaleLineMetrics(buf, target, tightenInk, oldAsc, oldDesc, newAsc, newDesc, oldYMin,
+                              oldYMax)) {
             fprintf(stderr, "[x] 改写行距度量失败 (不受支持的字体结构): %s\n", inPath);
             return 1;
+        }
+        // 自检: 回读改写后的数据, 确认仍是可解析字体、度量确为目标值。
+        // 不通过就拒绝写出 —— 调用方会保留原字体, 绝不把坏字体装进 system/fonts。
+        {
+            hb_blob_t *chkBlob = hb_blob_create(reinterpret_cast<const char *>(buf.data()),
+                                                static_cast<unsigned>(buf.size()),
+                                                HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+            hb_face_t *chkFace = hb_face_create(chkBlob, 0);
+            hb_font_t *chkFont = hb_font_create(chkFace);
+            hb_font_extents_t ext;
+            memset(&ext, 0, sizeof(ext));
+            const bool ok = hb_face_get_glyph_count(chkFace) > 0 &&
+                            hb_font_get_h_extents(chkFont, &ext) &&
+                            static_cast<int>(ext.ascender) == newAsc &&
+                            static_cast<int>(ext.descender) == newDesc;
+            hb_font_destroy(chkFont);
+            hb_face_destroy(chkFace);
+            hb_blob_destroy(chkBlob);
+            if (!ok) {
+                fprintf(stderr, "[x] 自检失败: 改写后的字体无法解析或度量不符, 已放弃: %s\n", inPath);
+                return 1;
+            }
         }
         if (!writeFile(outPath, reinterpret_cast<const char *>(buf.data()), buf.size())) {
             fprintf(stderr, "[x] 写入失败: %s\n", outPath);
@@ -527,18 +532,15 @@ int main(int argc, char **argv) {
     }
 
     hb_set_t *unicodes = hb_subset_input_unicode_set(input);
-    if (metricsMode) {
-        for (hb_codepoint_t cp : kMetricsSpaceCodes) hb_set_add(unicodes, cp);
-    } else if (minimal) {
+    if (minimal) {
         addRanges(unicodes, kMinimalRanges, face);
     } else {
         addRanges(unicodes, kLatinRanges, face);
     }
-    if (!metricsMode && keepCjk) addRanges(unicodes, kCjkRanges, face);
+    if (keepCjk) addRanges(unicodes, kCjkRanges, face);
 
-    // NOTDEF_OUTLINE: 保留 .notdef 字形轮廓。缺失时部分渲染器会显示空白框异常。
-    // 度量载体不需要: 它只覆盖空格, .notdef 永远不会被用到, 留空更小。
-    if (!metricsMode) hb_subset_input_set_flags(input, HB_SUBSET_FLAGS_NOTDEF_OUTLINE);
+    // NOTDEF_OUTLINE: 保留 .notdef 字形轮廓。缺失时部分渲染器会显示空白框异常
+    hb_subset_input_set_flags(input, HB_SUBSET_FLAGS_NOTDEF_OUTLINE);
     // 注: 不设置 NO_HINTING —— 保留渲染提示, 小字号下更清晰
     // 注: 不设置 NO_LAYOUT_CLOSURE —— 保留 GSUB/GPOS 闭包, 连字与字距正常
 
@@ -570,19 +572,6 @@ int main(int argc, char **argv) {
         residual = countCoverage(subset, kCjkRanges);
     }
     printf("in=%zu out=%u residual_cjk=%u\n", data.size(), len, residual);
-
-    // 度量载体: 报告挖空后剩下的度量, 调用方据此在日志里确认行距来源与量级
-    if (metricsMode) {
-        hb_font_t *metricsFont = hb_font_create(subset);
-        hb_font_extents_t ext;
-        memset(&ext, 0, sizeof(ext));
-        if (hb_font_get_h_extents(metricsFont, &ext)) {
-            printf("metrics ascender=%d descender=%d line_gap=%d\n",
-                   static_cast<int>(ext.ascender), static_cast<int>(ext.descender),
-                   static_cast<int>(ext.line_gap));
-        }
-        hb_font_destroy(metricsFont);
-    }
 
     hb_blob_destroy(outBlob);
     hb_face_destroy(subset);

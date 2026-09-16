@@ -1,7 +1,7 @@
 // fontmm-wght: 覆写模块字体配置 XML 各生效 family 的字重范围与行距字距载体
 // 用法: fontmm-wght -mode 0|1|2|3 [-min N] [-max N] [-map <wght-map.txt>]
 //
-//	[-metrics on|off|auto] [-xml-dir <模块根>] [-sync]
+//	[-xml-dir <模块根>] [-sync]
 //
 // 说明: 只修改主配置 system/etc/fonts.xml, 加 -sync 后复制到各派生配置 (issue #7)
 package main
@@ -21,7 +21,6 @@ func main() {
 	mapPath := flag.String("map", "", "自定义映射文件 (mode 3): 每行 'weight axis'")
 	xmlDir := flag.String("xml-dir", "/data/adb/modules/FontMM", "模块根目录 (含 system/etc/fonts.xml)")
 	sync := flag.Bool("sync", false, "覆写后复制 fonts.xml 到各派生配置")
-	metrics := flag.String("metrics", "auto", "固定行距字距 (issue #17): on|off|auto (auto 读 FONTS/metrics.txt)")
 	flag.Parse()
 
 	var customMap map[int]int
@@ -37,8 +36,7 @@ func main() {
 		}
 	}
 
-	enabled := wght.ResolveMetrics(*xmlDir, *metrics)
-	changed, err := wght.ApplyToDir(*xmlDir, *mode, *min, *max, customMap, *sync, enabled)
+	changed, err := wght.ApplyToDir(*xmlDir, *mode, *min, *max, customMap, *sync)
 	if err != nil {
 		fmt.Printf("[x] %v\n", err)
 		os.Exit(1)

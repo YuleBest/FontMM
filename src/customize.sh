@@ -276,7 +276,7 @@ system/system_ext/etc/fonts_ule.xml"
     local wght="$MODPATH/tools/fontmm-wght"
     if [ -f "$wght" ]; then
         chmod 0755 "$wght" 2>/dev/null
-        if "$wght" -mode 0 -metrics auto -sync -xml-dir "$MODPATH" >/dev/null 2>&1; then
+        if "$wght" -mode 0 -sync -xml-dir "$MODPATH" >/dev/null 2>&1; then
             log "已同步派生字体配置"
         else
             log "同步派生配置失败 (可忽略, 使用内置副本)"

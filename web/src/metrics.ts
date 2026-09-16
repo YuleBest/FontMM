@@ -5,9 +5,9 @@
 // system/fonts 的字体行距各不相同, 换字体行距就会变; 只在家族首位放一个度量载体
 // 也压不住比它更高的字体。
 //
-// 做法: apply.sh 按本页开关与档位做两件事 —— 把装入的字体行距度量按比例统一到同一
-// 总量 (字形不动), 再把内置的度量载体插到各家族首位。开关存 FONTS/metrics.txt,
-// 档位 (千分比 em) 存 FONTS/line-height.txt。
+// 做法: apply.sh 按本页开关与档位, 把装入 system/fonts 的字体行距度量按比例统一到同一
+// 总量, 并收紧虚高的包围盒 (段落上下留白来自它)。字形完全不动。
+// 开关存 FONTS/metrics.txt, 档位 (千分比 em) 存 FONTS/line-height.txt。
 import '@material/web/switch/switch.js';
 import { exec, toast } from './ksu';
 import { FONTS_DIR } from './constants';

@@ -201,35 +201,33 @@ src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / �
 里 `lineAscent = min(paint.getFontMetrics().ascent, 该行字体的 ascent)`（descent 取 max），
 其中 paint 度量取自 typeface 家族里与请求字重最接近的条目（hwui
 `Paint::getMetricsInternal` → Minikin `FontCollection::baseFontFaked`）。并集**只能抬高、
-不能压低**，所以只要装入字体的行距各不相同，换字体行距就会变；只在家族首位放一个度量载体，
-也压不住比它更高的字体（第一版就是这么失败的）。
+不能压低**，因此只要装入字体的行距各不相同，换字体行距就会变。
 
-**做法**（两件事一起做才真的固定住）：
+另外「一段文字上下那圈留白」与行距无关：它来自 `includeFontPadding`（默认开启），
+`StaticLayout` 里 `mTopPadding = above - top`、`mBottomPadding = bottom - below`，而
+`top`/`bottom` 是 Skia 的 `SkFontMetrics.fTop/fBottom`，**取自 `head` 表的包围盒**。
+字体包围盒被极少数大字形撑大时（实测某 Sarasa 变体：hhea 1.45 em 而包围盒 2.86 em），
+每段会多出约 1.4 em 的空白。
 
-1. **统一装入字体的行距度量**（关键）：`fontmm-subset -line-metrics` 把 `apply.sh` 装入
-   `system/fonts` 的字体（8 个槽位目标 + `DroidSansMono.ttf` + `NotoColorEmoji.ttf`）的
-   `hhea` / `OS/2` 行距**按比例**缩放到同一总量，`lineGap` 归零、上下比例保持不变（避免基线
-   跳变与文字重叠）。只改度量字段，字形、`hmtx`、布局表原样保留，表长度不变所以无需重排文件；
-   只有 `hhea` / `OS/2` 的表校验和与 `head.checkSumAdjustment` 需要重算。
-   `FONTS/` 里的原始字体不动，改写只作用于装入的那一份。
-   **同时收紧 `head` 包围盒**：段落上下的空白不是行距，而是
-   `includeFontPadding`（默认开启）用 `mTopPadding = above - top`、`mBottomPadding =
-   bottom - below` 撑出来的，其中 `top`/`bottom` 是 Skia 的 `SkFontMetrics.fTop/fBottom`，
-   取自 **`head` 表的包围盒**（不是 `hhea`）。字体包围盒被极少数大字形撑大时（实测某个
-   Sarasa 变体：hhea 1.45 em 而包围盒 2.86 em），每段会多出约 1.4 em 的空白 —— 这正是
-   「段高离谱」的来源。因此改写时把包围盒**只收紧、不放大**到行距盒（`yMax ≤ ascent`、
-   `yMin ≥ descender`），正常字体不受影响。
-   **字体集合（`.ttc` / `.otc`）同样支持**：逐个 face 处理，并按表偏移去重（集合里多个 face
-   常共享同一份 `hhea`/`OS/2`，重复改写会把已缩放的度量再缩一次）；`checkSumAdjustment`
-   先把所有 head 的该字段归零、对全文件求和一次，再写回同一个值；`head` 的目录校验和按
-   `checkSumAdjustment` 归零计算（与该表本身的约定一致）。
-   应用日志会逐字体回显旧/新度量与包围盒，便于核对（不同 upem 数值不同，看 em 占比是否一致）。
-2. **度量载体**：`src/system/fonts/FontMM-Metrics.ttf`（16KB，由 Roboto Flex 挖空而来，只有
-   度量与空格字形）插到各家族首位，让 paint 度量那一侧也一致。9 档字重全覆盖 —— 家族匹配是
-   「取与请求字重最接近的条目」，只放 400 档的话粗体等仍会落到用户字体上。
+**做法**：`apply.sh` 在开关打开时，对装入 `system/fonts` 的字体（8 个槽位目标 +
+`DroidSansMono.ttf` + `NotoColorEmoji.ttf`）调用 `fontmm-subset -line-metrics`：
+
+1. 把 `hhea` / `OS/2`（typo 与 win）行距**按比例**缩放到同一总量，`lineGap` 归零、
+   上下比例保持不变（避免基线跳变与文字重叠）。
+2. 把 `head` 包围盒**只收紧、不放大**到行距盒（`yMax ≤ 上升部`、`yMin ≥ 下降部`），
+   收掉段落上下那圈空白；包围盒本来就正常的字体不受影响。
+
+只改这些字段，字形 / `hmtx` / 布局表原样保留，表长度不变；`hhea` / `OS/2` / `head` 的
+表校验和与 `head.checkSumAdjustment` 重算。`FONTS/` 里的原始字体不动。改写后会**回读自检**
+（harfbuzz 重新解析 + 度量比对），不通过就拒绝写出、保留原字体，避免坏字体进入 system/fonts。
+
+**字体集合（`.ttc` / `.otc`）同样支持**：逐个 face 处理并按表偏移去重（集合里多个 face 常
+共享同一份 `hhea`/`OS/2`，重复改写会把已缩放的度量再缩一次）；`checkSumAdjustment` 先把所有
+head 的该字段归零、对全文件求和一次再写回同一个值；`head` 的目录校验和按 `checkSumAdjustment`
+归零计算（与该表自身约定一致）。
 
 档位（行距总量，千分比 em）由 WebUI 选，写在 `FONTS/line-height.txt`：紧凑 `1200` /
-标准 `1450` / 宽松 `1600`，缺省 1450。设备端工具用法：
+标准 `1450` / 宽松 `1600`，缺省 1450；开关在 `FONTS/metrics.txt`。设备端用法：
 
 ```bash
 fontmm-subset -line-metrics -in <font.ttf> -out <out.ttf> -line-total <permille>
@@ -237,23 +235,11 @@ fontmm-subset -line-metrics -in <font.ttf> -out <out.ttf> -line-total <permille>
 # 包围盒被收紧时追加: ink_y=-1048/1808
 ```
 
-**载体来源与重新生成**（换度量来源只需换 `-in` 的文件）：
+**调试/二分**：在 `FONTS/` 放一个空文件 `.no-tighten-ink`，就只统一度量、不动包围盒。
 
-```bash
-curl -Lo /tmp/RobotoFlex.ttf 'https://github.com/google/fonts/raw/main/ofl/robotoflex/RobotoFlex%5BGRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC,opsz,slnt,wdth,wght%5D.ttf'
-g++ -O1 -std=c++17 -DHB_NO_MT -I dev/.cache/harfbuzz/harfbuzz-*/src \
-  dev/.cache/harfbuzz/harfbuzz-*/src/harfbuzz-subset.cc \
-  native/src/subset/fontmm-subset.cc -o /tmp/fontmm-subset-host
-/tmp/fontmm-subset-host -metrics -in /tmp/RobotoFlex.ttf -out src/system/fonts/FontMM-Metrics.ttf
-```
-
-Roboto Flex 为 OFL-1.1 且无保留字体名，许可文本见 `src/system/fonts/LICENSE-OFL-RobotoFlex`。
-
-**分工**：`apply.sh` 读 `FONTS/metrics.txt`（开关）与 `FONTS/line-height.txt`（档位）→
-统一各字体与载体的行距 → 调 `fontmm-wght -mode 0 -metrics on|off -sync` 插入/移除载体条目
-（`auto` 表示由工具自己读开关文件）。载体缺失时不插入条目，避免 `fonts.xml` 引用缺失字体；
-关闭是幂等的，能把 XML 逐字节还原（Go 单测覆盖）。`dev/ci.mjs` 校验载体文件名在 `apply.sh`
-与 Go 两侧一致、载体确实随仓库提供、档位缺省值与 WebUI 常量一致。
+**踩过的坑（勿重蹈）**：早先的实现是「挖空一个现成字体做度量载体，插到各家族首位」——
+实测这种合成字体在设备上会让**开机失败**（引用它的 fonts.xml 一恢复即可开机）。载体只影响
+paint 度量那一侧、对行距贡献次要，因此该方案已整个移除。
 
 **已知限制**：
 
@@ -261,7 +247,7 @@ Roboto Flex 为 OFL-1.1 且无保留字体名，许可文本见 `src/system/font
   Braille 等）**有意不统一**：用户所选字体通常已覆盖日常用字，为极少数生僻字每次应用
   多改写 100MB+ 文件不划算；且它们字形本来就高（Tibetan 约 2.8 em、SatisarSharada
   约 4.2 em），强行压低会叠行。含这些字形的行仍会比标准行更高。
-- DenyList 应用里载体不会被预加载，行距退回字体自身（字体已被统一，因此仍是同一档）。
+- DenyList 应用里字体不会被预热，但字体本身已被统一，行距仍是同一档。
 
 ## 可复现构建
 

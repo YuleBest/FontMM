@@ -196,50 +196,33 @@ await check('Zygisk 预热字体清单与 apply.sh 一致', async () => {
   }
 });
 
-// 固定行距字距 (issue #17): apply.sh 生成载体、Go 工具插入条目, 两边靠文件名耦合。
-// 名字一旦漂移, fonts.xml 就会引用一个不存在的字体, 表现为功能静默失效。
-await check('度量载体与开关文件名一致 (apply.sh / Go / WebUI)', async () => {
+// 固定行距 (issue #17): 开关与档位由 WebUI 写、apply.sh 读, 文件名/取值必须一致。
+// (早先版本还有一个「度量载体」字体插到 fonts.xml, 因设备上会导致开机失败已移除)
+await check('行距开关与档位一致 (apply.sh / WebUI)', async () => {
   const applySh = await fsp.readFile(path.join(SRC_DIR, 'apply.sh'), 'utf8');
-  const go = await fsp.readFile(path.join(ROOT, 'golang', 'internal', 'wght', 'wght.go'), 'utf8');
   const metricsTs = await fsp.readFile(path.join(WEB_DIR, 'src', 'metrics.ts'), 'utf8');
 
-  const carrier = applySh.match(/METRICS_CARRIER="\$SYS_FONT_DIR\/([A-Za-z0-9_.-]+)"/);
-  if (!carrier) throw new Error('apply.sh 中未找到 METRICS_CARRIER 定义');
-  const goCarrier = go.match(/MetricsFontFile\s*=\s*"([A-Za-z0-9_.-]+)"/);
-  if (!goCarrier) throw new Error('wght.go 中未找到 MetricsFontFile 常量');
-  if (carrier[1] !== goCarrier[1]) {
-    throw new Error(`载体文件名不一致: apply.sh=${carrier[1]}, Go=${goCarrier[1]}`);
+  const shSwitch = /\$\{?FONTS_DIR\}?\/metrics\.txt/.test(applySh);
+  const webSwitch = /FONTS_DIR\}\/metrics\.txt/.test(metricsTs);
+  if (!shSwitch || !webSwitch) {
+    throw new Error(`开关文件名不一致 (apply.sh=${shSwitch}, WebUI=${webSwitch})`);
   }
 
-  // 载体随模块打包, 缺失时开关会静默失效
-  const carrierFile = path.join(SRC_DIR, 'system', 'fonts', carrier[1]);
-  try {
-    const { size } = await fsp.stat(carrierFile);
-    if (size === 0) throw new Error('文件为空');
-  } catch (e) {
-    throw new Error(`缺少度量载体 ${path.relative(ROOT, carrierFile)} (${e.message})`);
+  const shLevel = /\$\{?FONTS_DIR\}?\/line-height\.txt/.test(applySh);
+  const webLevel = /FONTS_DIR\}\/line-height\.txt/.test(metricsTs);
+  if (!shLevel || !webLevel) {
+    throw new Error(`档位文件名不一致 (apply.sh=${shLevel}, WebUI=${webLevel})`);
   }
 
-  // 占位字体脚本会把列表内的文件清空, 载体不能被卷进去
-  const emptyFont = await fsp.readFile(path.join(ROOT, 'dev', 'empty-font.mjs'), 'utf8');
-  if (emptyFont.includes(carrier[1])) {
-    throw new Error(`dev/empty-font.mjs 的占位列表包含度量载体 ${carrier[1]}, 会被清空`);
-  }
-
-  // 开关文件名: apply.sh 与 Go 读、WebUI 写, 三处必须同名
-  const sh = /\$\{?FONTS_DIR\}?\/metrics\.txt/.test(applySh);
-  const golang = /"FONTS", "metrics\.txt"/.test(go);
-  const web = /FONTS_DIR\}\/metrics\.txt/.test(metricsTs);
-  if (!sh || !golang || !web) {
-    throw new Error(`开关文件名不一致 (apply.sh=${sh}, Go=${golang}, WebUI=${web})`);
-  }
-
-  // 行距档位: WebUI 的常量必须包含 apply.sh 的缺省值, 否则界面显示与刷入结果会不一致
+  // 档位缺省值: WebUI 的常量必须包含 apply.sh 的缺省值, 否则界面显示与刷入结果不一致
   const shDefault = applySh.match(/METRICS_TOTAL=(\d+)/);
   if (!shDefault) throw new Error('apply.sh 中未找到行距档位缺省值');
   if (!metricsTs.includes(shDefault[1])) {
     throw new Error(`WebUI 未定义 apply.sh 的缺省档位 ${shDefault[1]}`);
   }
+
+  // 字体行距统一只作用于 apply.sh 安装的字体, 清单不能卷进占位/系统字体之外的名字
+  if (!/^MANAGED_FONTS='/m.test(applySh)) throw new Error('apply.sh 中未找到 MANAGED_FONTS 清单');
 });
 
 // 前端脚本引用的 dev 入口必须存在 (避免重命名后 package.json 指向不存在的文件)

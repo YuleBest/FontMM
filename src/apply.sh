@@ -162,15 +162,13 @@ else
 fi
 
 echo "[*] 处理行距字距..."
-# 固定行距/字距 (issue #17)。行高在 Android 里是「paint 度量」与「该行实际使用字体度量」
-# 的并集 (StaticLayout: lineAscent = min(paint 上升部, 该行字体上升部)), 只能抬高不能压低,
-# 因此两件事一起做才能真的固定住:
-#   1. 把装入 system/fonts 的字体行距度量按比例缩放到同一个总量 (上下比例不变) —— 字形不动,
-#      换字体行距不再变化; 这是关键, 只放载体压不住比它更高的字体
-#   2. 把一个只有度量、没有文字字形的载体放到家族首位, 让 paint 度量那一侧也一致
-# 载体随模块打包 (src/system/fonts/), 无需设备端生成; 档位 (行距总量) 由 WebUI 选。
-METRICS_CARRIER="$SYS_FONT_DIR/FontMM-Metrics.ttf"
-# apply.sh 会写入 system/fonts 的字体清单 (与上方安装列表一致)
+# 固定行距 (issue #17)。行高在 Android 里是「paint 度量」与「该行实际使用字体度量」的并集
+# (StaticLayout: lineAscent = min(paint 上升部, 该行字体上升部)), 只能抬高不能压低, 所以
+# 唯一的做法是**把装入 system/fonts 的字体度量统一到同一档**, 换字体行距才不会变。
+# 另外段落上下的空白来自 includeFontPadding + 字体的 head 包围盒 (虚高时会顶出一大圈),
+# 一并在改写时收紧。档位由 WebUI 选 (FONTS/line-height.txt), 开关在 FONTS/metrics.txt。
+# 注: 早先版本还会插一个「度量载体」字体到家族首位, 实测该字体在设备上会导致开机失败,
+# 已整个移除 —— 它本来也只影响 paint 度量那一侧, 对行距的贡献是次要的。
 MANAGED_FONTS='SysFont-Regular.ttf
 SysSans-En-Regular.ttf
 SysFont-Static-Regular.ttf
@@ -182,7 +180,7 @@ SysSans-Hant-Regular.ttf
 DroidSansMono.ttf
 NotoColorEmoji.ttf'
 
-# 把单个字体的行距度量统一到 target (千分比 em, 如 1450); 只动度量字段, 其余部分不变。
+# 把单个字体的行距度量统一到 target (千分比 em, 如 1450); 只动度量与包围盒, 字形不变。
 # 临时文件写在模块根目录, 避免半成品出现在 system/fonts 的 overlay 里。
 unify_one() {
     local target="$1" file="$2"
@@ -191,7 +189,7 @@ unify_one() {
     local out=""
 
     [ -s "$file" ] || return 0 # 空占位文件跳过
-    if out=$(run_tool "$tool" -line-metrics -in "$file" -out "$tmp" -line-total "$target" 2>&1); then
+    if out=$(run_tool "$tool" -line-metrics -in "$file" -out "$tmp" -line-total "$target" $UNIFY_EXTRA 2>&1); then
         mv -f "$tmp" "$file"
         # 逐字体回显旧/新度量, 便于实机核对 (upem 不同则数值不同, 看 em 占比)
         echo "[*] $(basename "$file"): $(echo "$out" | tr '\n' ' ' | sed 's/line_metrics //')"
@@ -203,21 +201,6 @@ unify_one() {
     return 1
 }
 
-unify_line_metrics() {
-    local target="$1"
-    local f=""
-    [ -f "$MODDIR/tools/fontmm-subset" ] || {
-        echo "[-] 未找到字体工具, 跳过行距统一"
-        return 1
-    }
-    for f in $MANAGED_FONTS; do
-        unify_one "$target" "$SYS_FONT_DIR/$f"
-    done
-    # 度量载体不在上面的清单里 (它不参与字体安装), 但同样要用这一档度量
-    unify_one "$target" "$METRICS_CARRIER"
-    return 0
-}
-
 # 开关与档位由 WebUI 写在 FONTS/ 下 (随 FONTS 一起保留)
 METRICS_TOTAL="$(cat "$FONTS_DIR/line-height.txt" 2>/dev/null)"
 case "$METRICS_TOTAL" in
@@ -225,24 +208,21 @@ case "$METRICS_TOTAL" in
 *) METRICS_TOTAL=1450 ;; # 缺省 = 标准档
 esac
 
-METRICS_MODE="off"
-if [ ! -f "$METRICS_CARRIER" ]; then
-    echo "[-] 缺少度量载体 $METRICS_CARRIER, 跳过固定行距字距"
-elif [ "$(cat "$FONTS_DIR/metrics.txt" 2>/dev/null)" = "1" ]; then
-    METRICS_MODE="on"
-    echo "[*] 已启用固定行距字距 (行距总量 $METRICS_TOTAL/1000 em)"
-    unify_line_metrics "$METRICS_TOTAL"
-else
-    echo "[-] 未启用固定行距字距"
-fi
+# 调试/二分用: 放一个 FONTS/.no-tighten-ink 就只统一度量、不动包围盒
+UNIFY_EXTRA=""
+[ -f "$FONTS_DIR/.no-tighten-ink" ] && UNIFY_EXTRA="-no-tighten-ink"
 
-# 按开关插/移载体条目 (mode 0 不动字重, 与 WebUI 的字重覆写互不影响)
-if [ -f "$MODDIR/tools/fontmm-wght" ]; then
-    if run_tool "$MODDIR/tools/fontmm-wght" -mode 0 -metrics "$METRICS_MODE" -xml-dir "$MODDIR" -sync >/dev/null 2>&1; then
-        echo "[✓] 已同步字体配置 (固定行距字距: $METRICS_MODE)"
+if [ "$(cat "$FONTS_DIR/metrics.txt" 2>/dev/null)" = "1" ]; then
+    if [ -f "$MODDIR/tools/fontmm-subset" ]; then
+        echo "[*] 已启用固定行距 (行距总量 $METRICS_TOTAL/1000 em)"
+        for f in $MANAGED_FONTS; do
+            unify_one "$METRICS_TOTAL" "$SYS_FONT_DIR/$f"
+        done
     else
-        echo "[!] 同步字体配置失败, 固定行距字距可能未生效"
+        echo "[-] 未找到字体工具, 跳过固定行距"
     fi
+else
+    echo "[-] 未启用固定行距"
 fi
 
 echo "[*] 全部完成, 重启后生效"
