@@ -212,6 +212,10 @@ src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / �
    跳变与文字重叠）。只改度量字段，字形、`hmtx`、布局表原样保留，表长度不变所以无需重排文件；
    只有 `hhea` / `OS/2` 的表校验和与 `head.checkSumAdjustment` 需要重算。
    `FONTS/` 里的原始字体不动，改写只作用于装入的那一份。
+   **字体集合（`.ttc` / `.otc`）同样支持**：逐个 face 处理，并按表偏移去重（集合里多个 face
+   常共享同一份 `hhea`/`OS/2`，重复改写会把已缩放的度量再缩一次）；`checkSumAdjustment`
+   先把所有 head 的该字段归零、对全文件求和一次，再写回同一个值。
+   应用日志会逐字体回显旧/新度量，便于核对（不同 upem 数值不同，看 em 占比是否一致）。
 2. **度量载体**：`src/system/fonts/FontMM-Metrics.ttf`（16KB，由 Roboto Flex 挖空而来，只有
    度量与空格字形）插到各家族首位，让 paint 度量那一侧也一致。9 档字重全覆盖 —— 家族匹配是
    「取与请求字重最接近的条目」，只放 400 档的话粗体等仍会落到用户字体上。
@@ -245,9 +249,9 @@ Roboto Flex 为 OFL-1.1 且无保留字体名，许可文本见 `src/system/font
 **已知限制**：
 
 - 只统一「会被安装替换」的字体。模块自带的生僻字 fallback（Plangothic / Tibetan /
-  Braille 等）保持自身度量 —— 它们的字形本来就高（Tibetan 约 2.8 em、SatisarSharada
+  Braille 等）**有意不统一**：用户所选字体通常已覆盖日常用字，为极少数生僻字每次应用
+  多改写 100MB+ 文件不划算；且它们字形本来就高（Tibetan 约 2.8 em、SatisarSharada
   约 4.2 em），强行压低会叠行。含这些字形的行仍会比标准行更高。
-- 字体集合（`.ttc`）不是单体 sfnt，会被跳过（该字体保持原度量，不阻断安装）。
 - DenyList 应用里载体不会被预加载，行距退回字体自身（字体已被统一，因此仍是同一档）。
 
 ## 可复现构建

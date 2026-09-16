@@ -188,15 +188,18 @@ unify_one() {
     local target="$1" file="$2"
     local tool="$MODDIR/tools/fontmm-subset"
     local tmp="$MODDIR/.line-metrics.tmp"
+    local out=""
 
-    [ -f "$file" ] || return 0
-    if run_tool "$tool" -line-metrics -in "$file" -out "$tmp" -line-total "$target" >/dev/null 2>&1; then
+    [ -s "$file" ] || return 0 # 空占位文件跳过
+    if out=$(run_tool "$tool" -line-metrics -in "$file" -out "$tmp" -line-total "$target" 2>&1); then
         mv -f "$tmp" "$file"
+        # 逐字体回显旧/新度量, 便于实机核对 (upem 不同则数值不同, 看 em 占比)
+        echo "[*] $(basename "$file"): $(echo "$out" | tr '\n' ' ' | sed 's/line_metrics //')"
         return 0
     fi
-    # 字体结构不受支持 (例如字体集合) 时不阻断: 该字体保持原度量
+    # 不受支持的字体不阻断安装: 该字体保持原度量
     rm -f "$tmp"
-    echo "[-] $(basename "$file") 行距度量未统一 (字体结构不受支持), 保持原样"
+    echo "[!] $(basename "$file") 行距度量未统一: $(echo "$out" | tr '\n' ' ')"
     return 1
 }
 

@@ -186,15 +186,35 @@ struct TableRef {
     bool found = false;
 };
 
-static TableRef findTable(const unsigned char *data, size_t size, const char *tag) {
-    TableRef ref;
-    if (size < 12) return ref;
+// 各 face 的偏移表起点。单体 sfnt 返回 {0}; 字体集合 (ttcf, 即 .ttc/.otc) 返回每个 face。
+// 集合里的 face 共享底层表(通常连 head/hhea 都是同一份), 因此调用方需要按表偏移去重。
+static std::vector<size_t> sfntFaces(const unsigned char *data, size_t size) {
+    std::vector<size_t> faces;
+    if (size < 12) return faces;
+    if (rdU32(data, 0) == 0x74746366u) {  // 'ttcf'
+        uint32_t numFonts = rdU32(data, 8);
+        // 防止异常文件里的巨大值导致越界循环
+        if (numFonts > 1024) return faces;
+        for (uint32_t i = 0; i < numFonts; i++) {
+            size_t p = 12 + i * 4;
+            if (p + 4 > size) break;
+            size_t off = rdU32(data, p);
+            if (off + 12 <= size) faces.push_back(off);
+        }
+        return faces;
+    }
     uint32_t version = rdU32(data, 0);
-    // 只处理单体 sfnt (TrueType / CFF); 字体集合 (ttcf) 需按 face 索引解析, 暂不支持
-    if (version != 0x00010000u && version != 0x4F54544Fu && version != 0x74727565u) return ref;
-    unsigned numTables = rdU16(data, 4);
+    if (version != 0x00010000u && version != 0x4F54544Fu && version != 0x74727565u) return faces;
+    faces.push_back(0);
+    return faces;
+}
+
+static TableRef findTable(const unsigned char *data, size_t size, const char *tag, size_t face) {
+    TableRef ref;
+    if (face + 12 > size) return ref;
+    unsigned numTables = rdU16(data, face + 4);
     for (unsigned i = 0; i < numTables; i++) {
-        size_t dir = 12 + i * 16;
+        size_t dir = face + 12 + i * 16;
         if (dir + 16 > size) return ref;
         if (memcmp(data + dir, tag, 4) != 0) continue;
         ref.dirOffset = dir;
@@ -209,59 +229,103 @@ static TableRef findTable(const unsigned char *data, size_t size, const char *ta
 
 // upem (head 表偏移 18 处的 uint16)
 static unsigned unitsPerEm(const unsigned char *data, size_t size) {
-    TableRef head = findTable(data, size, "head");
-    if (!head.found || head.length < 20) return 0;
-    return rdU16(data, head.offset + 18);
+    for (size_t face : sfntFaces(data, size)) {
+        TableRef head = findTable(data, size, "head", face);
+        if (head.found && head.length >= 20) return rdU16(data, head.offset + 18);
+    }
+    return 0;
 }
 
-// 把行距总量缩放到 targetTotal (字体单位), 上下比例保持; 返回是否改动
+// 把行距总量缩放到 targetTotal (字体单位), 上下比例保持; 返回是否改动。
+// 支持字体集合 (.ttc/.otc): 逐个 face 处理, 按表偏移去重 —— 集合里多个 face 常共享
+// 同一份 hhea/OS/2, 重复改写会把已经缩放的度量再缩放一次。
 static bool scaleLineMetrics(std::vector<unsigned char> &buf, unsigned targetTotal, int &oldAsc,
                              int &oldDesc, int &newAsc, int &newDesc) {
     unsigned char *data = buf.data();
     size_t size = buf.size();
 
-    TableRef hhea = findTable(data, size, "hhea");
-    if (!hhea.found || hhea.length < 10) return false;
+    std::vector<size_t> faces = sfntFaces(data, size);
+    if (faces.empty()) return false;
 
-    const int asc = rdI16(data, hhea.offset + 4);
-    const int desc = rdI16(data, hhea.offset + 6);
-    const int gap = rdI16(data, hhea.offset + 8);
-    oldAsc = asc;
-    oldDesc = desc;
+    auto seen = [](const std::vector<size_t> &v, size_t off) {
+        for (size_t x : v) {
+            if (x == off) return true;
+        }
+        return false;
+    };
 
-    // 原始总量: 上升部 + 下降部 + 行间隙 (lineGap 归零后并入)
-    const int total = asc - desc + gap;
-    if (total <= 0) return false;
+    std::vector<size_t> patched;      // 已改写的 hhea / OS2 表偏移
+    std::vector<size_t> headOffsets;  // 待重算 checkSumAdjustment 的 head 表偏移
+    bool any = false, reported = false;
 
-    // 按原始上下比例分配目标总量 (比例保持不变 → 基线位置不跳变)
-    const int upper = asc + gap;  // lineGap 视为上升部的一部分
-    newAsc = static_cast<int>(static_cast<long long>(targetTotal) * upper / total);
-    newDesc = newAsc - static_cast<int>(targetTotal);
-    if (newAsc <= 0 || newDesc >= 0) return false;
+    for (size_t face : faces) {
+        TableRef head = findTable(data, size, "head", face);
+        if (head.found && !seen(headOffsets, head.offset)) headOffsets.push_back(head.offset);
 
-    wrI16(data, hhea.offset + 4, newAsc);
-    wrI16(data, hhea.offset + 6, newDesc);
-    wrI16(data, hhea.offset + 8, 0);  // lineGap 统一归零
+        TableRef hhea = findTable(data, size, "hhea", face);
+        if (!hhea.found || hhea.length < 10 || seen(patched, hhea.offset)) continue;
 
-    // OS/2 (版本 0 起字段位置一致): sTypoAscender/Descender/LineGap 与 usWinAscent/Descent
-    TableRef os2 = findTable(data, size, "OS/2");
-    if (os2.found && os2.length >= 74) {
-        wrI16(data, os2.offset + 68, newAsc);
-        wrI16(data, os2.offset + 70, newDesc);
-        wrI16(data, os2.offset + 72, 0);
-        wrU16(data, os2.offset + 74, static_cast<uint16_t>(newAsc));
-        wrU16(data, os2.offset + 76, static_cast<uint16_t>(-newDesc));
-        wrU32(data, os2.dirOffset + 4, tableChecksum(data + os2.offset, os2.length));
+        const int asc = rdI16(data, hhea.offset + 4);
+        const int desc = rdI16(data, hhea.offset + 6);
+        const int gap = rdI16(data, hhea.offset + 8);
+
+        // 原始总量: 上升部 + 下降部 + 行间隙 (行间隙归零后并入上升部)
+        const int total = asc - desc + gap;
+        if (total <= 0) continue;
+
+        // 按原始上下比例分配目标总量 (比例保持不变 → 基线位置不跳变)
+        const int upper = asc + gap;
+        const int na = static_cast<int>(static_cast<long long>(targetTotal) * upper / total);
+        const int nd = na - static_cast<int>(targetTotal);
+        if (na <= 0 || nd >= 0) continue;
+
+        if (!reported) {
+            oldAsc = asc;
+            oldDesc = desc;
+            newAsc = na;
+            newDesc = nd;
+            reported = true;
+        }
+
+        wrI16(data, hhea.offset + 4, na);
+        wrI16(data, hhea.offset + 6, nd);
+        wrI16(data, hhea.offset + 8, 0);
+        patched.push_back(hhea.offset);
+
+        // OS/2 (版本 0 起字段位置一致): sTypo 与 usWin 一起改, 避免不同渲染路径取到不同值
+        TableRef os2 = findTable(data, size, "OS/2", face);
+        if (os2.found && os2.length >= 78 && !seen(patched, os2.offset)) {
+            wrI16(data, os2.offset + 68, na);
+            wrI16(data, os2.offset + 70, nd);
+            wrI16(data, os2.offset + 72, 0);
+            wrU16(data, os2.offset + 74, static_cast<uint16_t>(na));
+            wrU16(data, os2.offset + 76, static_cast<uint16_t>(-nd));
+            patched.push_back(os2.offset);
+        }
+        any = true;
     }
 
-    wrU32(data, hhea.dirOffset + 4, tableChecksum(data + hhea.offset, hhea.length));
+    if (!any) return false;
 
-    // head.checkSumAdjustment: 归零后对全文件求和, 再取补
-    TableRef head = findTable(data, size, "head");
-    if (!head.found || head.length < 12) return false;
-    wrU32(data, head.offset + 8, 0);
-    const uint32_t sum = tableChecksum(data, size);
-    wrU32(data, head.offset + 8, 0xB1B0AFBAu - sum);
+    // 表校验和: 更新所有引用了被改写表的目录项 (集合里可能多个 face 指向同一张表)
+    for (size_t face : faces) {
+        unsigned numTables = rdU16(data, face + 4);
+        for (unsigned i = 0; i < numTables; i++) {
+            size_t dir = face + 12 + i * 16;
+            if (dir + 16 > size) break;
+            size_t off = rdU32(data, dir + 8);
+            size_t len = rdU32(data, dir + 12);
+            if (!seen(patched, off) || off + len > size) continue;
+            wrU32(data, dir + 4, tableChecksum(data + off, len));
+        }
+    }
+
+    // head.checkSumAdjustment: 先把所有 head 的该字段归零, 再对全文件求和一次,
+    // 最后写回同一个值 —— 集合 (.ttc) 里可能有多个 head, 逐个头累加会因为前一个
+    // 已经写入的值而算错。
+    for (size_t ho : headOffsets) wrU32(data, ho + 8, 0);
+    const uint32_t adjustment = 0xB1B0AFBAu - tableChecksum(data, size);
+    for (size_t ho : headOffsets) wrU32(data, ho + 8, adjustment);
     return true;
 }
 
