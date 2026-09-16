@@ -67,9 +67,11 @@ async function readWghtMode(): Promise<WghtMode> {
 // 覆写字体配置: 调用模块内置 Go 程序 fontmm-wght (只改 fonts.xml, 再 -sync 到各派生配置)
 export async function applyWghtOverride(mode: 1 | 2 | 3, min: number, max: number): Promise<void> {
   const mapArg = mode === 3 ? ` -map '${FONTS_DIR}/wght-map.txt'` : '';
-  // 日志写到 FONTS/wght-apply.log 方便真机排查; 先 chmod +x 保证可执行
+  // 日志写到 FONTS/wght-apply.log 方便真机排查。
+  // 工具在刷入后是 0644 (KernelSU 解压时不保留 zip 里的执行位), 故执行前临时
+  // 加执行位、执行后还原; 末尾 exit $rc 保证 errno 仍是工具自身的退出码。
   const logFile = `${FONTS_DIR}/wght-apply.log`;
-  const cmd = `chmod +x '${WGHT_BIN}' 2>/dev/null; '${WGHT_BIN}' -mode ${mode} -min ${min} -max ${max}${mapArg} -sync > '${logFile}' 2>&1`;
+  const cmd = `chmod 0755 '${WGHT_BIN}' 2>/dev/null; '${WGHT_BIN}' -mode ${mode} -min ${min} -max ${max}${mapArg} -sync > '${logFile}' 2>&1; rc=$?; chmod 0644 '${WGHT_BIN}' 2>/dev/null; exit $rc`;
   try {
     const { errno } = await exec(cmd);
     // 读取并回显执行日志 (同时 console 输出供排查)

@@ -38,6 +38,21 @@ $list
 EOF
 }
 
+# 执行模块内的原生工具。
+# 刷入后 tools/ 下的文件权限是 0644 (KernelSU 解压时不保留 zip 里的执行位),
+# 因此不能靠 -x 判断可用性, 而是执行前临时加执行位、执行后立即还原,
+# 避免长期留下可执行文件。退出码为工具自身的退出码, 工具缺失返回 127。
+run_tool() {
+    local tool="$1"
+    shift
+    [ -f "$tool" ] || return 127
+    chmod 0755 "$tool" 2>/dev/null
+    "$tool" "$@"
+    local rc=$?
+    chmod 0644 "$tool" 2>/dev/null
+    return "$rc"
+}
+
 # 准备英文字体: 含 CJK 字形时裁成纯拉丁子集, 否则原样使用 (issue #10)
 # 用法: prepare_english_font <源字体> <子集输出路径>
 # 成功 (含子集化) 时输出子集路径; 无需处理或工具不可用时返回非 0, 调用方回退原字体。
@@ -52,7 +67,7 @@ prepare_english_font() {
     [ -f "$src" ] || return 1
 
     # 工具缺失 (旧版本模块升级、文件被删): 跳过, 用原字体
-    if [ ! -x "$tool" ]; then
+    if [ ! -f "$tool" ]; then
         echo "[-] 未找到字体子集化工具, 跳过英文子集化"
         return 1
     fi
@@ -61,7 +76,7 @@ prepare_english_font() {
     # 退出码: 0=不含 CJK, 1=含 CJK, 2=文件无效/读取失败, 126/127=工具无法执行
     # 只有明确返回 1 (含 CJK) 才做子集化; 其余情况一律跳过,
     # 避免工具损坏时还去调用一次子集化 (那样会误报「子集化失败」)
-    "$tool" -check "$src" >/dev/null 2>&1
+    run_tool "$tool" -check "$src" >/dev/null 2>&1
     local rc=$?
 
     if [ "$rc" -eq 0 ]; then
@@ -74,7 +89,7 @@ prepare_english_font() {
     fi
 
     echo "[*] 英文字体含 CJK 字形, 生成拉丁子集..."
-    if ! "$tool" -in "$src" -out "$out" 2>&1; then
+    if ! run_tool "$tool" -in "$src" -out "$out" 2>&1; then
         # 子集化失败不阻断安装: 退回原字体, 并提示可能出现的问题
         echo "[!] 子集化失败, 使用原字体 (中文可能被英文字体的字形覆盖)"
         rm -f "$out"
