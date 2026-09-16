@@ -1,6 +1,6 @@
 import '@material/web/button/filled-button.js';
 import { exec, shellQuote } from './ksu';
-import { FontFilePicker } from './fontPicker';
+import { fontPicker } from './fontPicker';
 import { renderPreview, type PreviewData } from './previewRenderer';
 
 // ---------------- 工具框架 ----------------
@@ -377,7 +377,6 @@ class FontEditorPage {
   private originalBytes: Uint8Array | null = null;
   private fileName = '';
   private hasNameChanges = false;
-  private picker: FontFilePicker | null = null;
   private previewText = DEFAULT_PREVIEW_TEXT;
 
   private editTimer: number | null = null;
@@ -502,10 +501,9 @@ class FontEditorPage {
       void this.loadFont('demo-font.ttf', 'demo-font.ttf');
       return;
     }
-    this.picker ??= new FontFilePicker((path, name) => {
+    fontPicker.show('/storage/emulated/0/Download', (path, name) => {
       void this.copyAndLoad(path, name);
     });
-    this.picker.show('/storage/emulated/0/Download');
   }
 
   private async copyAndLoad(path: string, name: string): Promise<void> {

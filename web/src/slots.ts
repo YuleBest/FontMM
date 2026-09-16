@@ -1,4 +1,4 @@
-import { FontFilePicker } from './fontPicker';
+import { fontPicker } from './fontPicker';
 import { exec, shellQuote } from './ksu';
 import { readFontInfo } from './fontInfo';
 import { ensureFontsCopy } from './fontFiles';
@@ -55,13 +55,16 @@ export function setApplying(v: boolean): void {
   applying = v;
 }
 
-const picker = new FontFilePicker((path, name) => {
-  const slot = slots[pickingKey];
-  slot.path = path;
-  slot.fileName = name;
-  renderSlots();
-  void refreshSlotInfo(slot);
-});
+function pickFontFor(key: SlotKey): void {
+  pickingKey = key;
+  fontPicker.show('/storage/emulated/0', (path, name) => {
+    const slot = slots[pickingKey];
+    slot.path = path;
+    slot.fileName = name;
+    renderSlots();
+    void refreshSlotInfo(slot);
+  });
+}
 
 // 未选择时的占位文案: 回退可视化 (WYSIWYG)
 function slotPlaceholder(slot: FontSlot): string {
@@ -128,11 +131,10 @@ export function renderSlots() {
     })
     .join('');
 
-  // 绑定事件: 整卡点击选择字体
+  // 绑定事件: 整卡点击选择字体 (回调按点击的槽位处理)
   slotsEl.querySelectorAll<HTMLElement>('.slot-card').forEach((card) => {
     card.addEventListener('click', () => {
-      pickingKey = card.dataset.key as SlotKey;
-      picker.show();
+      pickFontFor(card.dataset.key as SlotKey);
     });
   });
   slotsEl.querySelectorAll<HTMLElement>('.slot-clear').forEach((btn) => {

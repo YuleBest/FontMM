@@ -12,25 +12,42 @@ export interface FileItem {
   size?: string;
 }
 
-export class FontFilePicker {
-  private currentPath = '/storage/emulated/0';
-  private dialogEl!: HTMLElement;
-  private listEl!: HTMLElement;
-  private pathEl!: HTMLElement;
-  private onSelectCallback: (path: string, fileName: string) => void;
+/** 选中文件时的回调: 完整路径与文件名 */
+export type FontSelectHandler = (path: string, fileName: string) => void;
 
-  constructor(onSelect: (path: string, fileName: string) => void) {
-    this.onSelectCallback = onSelect;
+const DEFAULT_PATH = '/storage/emulated/0';
+
+/**
+ * 文件选择器。全局只应存在一个实例 (下方导出 fontPicker) —— 对话框 DOM 是
+ * 单例 (按 id 复用), 若允许第二个实例, 它会复用这份 DOM 却拿不到返回/取消
+ * 按钮的监听 (initDialog 命中已有元素时直接返回), 于是返回键按上一个实例的
+ * 过期路径导航、选中文件也回调给上一个实例, 表现为「返回跳两层」「在别的
+ * 目录选文件没反应」(issue #13)。因此选中回调改为每次 show 时传入。
+ */
+class FontFilePicker {
+  private currentPath = DEFAULT_PATH;
+  private dialogEl: any = null;
+  private listEl: HTMLElement | null = null;
+  private pathEl: HTMLElement | null = null;
+  private onSelect: FontSelectHandler | null = null;
+
+  /** 打开选择器: initialPath 为起始目录, onSelect 为本次选择的处理函数 */
+  public show(initialPath: string, onSelect: FontSelectHandler): void {
     this.initDialog();
+    this.onSelect = onSelect;
+    this.currentPath = initialPath || DEFAULT_PATH;
+    this.pathEl!.textContent = this.currentPath;
+    this.dialogEl.open = true;
+    void this.loadDirectory(this.currentPath);
+  }
+
+  public hide(): void {
+    if (this.dialogEl) this.dialogEl.open = false;
+    this.onSelect = null;
   }
 
   private initDialog(): void {
-    if (document.getElementById('picker-dialog')) {
-      this.dialogEl = document.getElementById('picker-dialog')!;
-      this.listEl = document.getElementById('picker-list')!;
-      this.pathEl = document.getElementById('picker-path')!;
-      return;
-    }
+    if (this.dialogEl) return;
 
     const dialogHTML = `
       <md-dialog id="picker-dialog" class="font-picker-dialog">
@@ -41,7 +58,7 @@ export class FontFilePicker {
             </md-icon-button>
             <div class="picker-path-group">
               <div class="picker-subtitle">选择字体文件</div>
-              <div id="picker-path" class="picker-path-text">/storage/emulated/0</div>
+              <div id="picker-path" class="picker-path-text">${DEFAULT_PATH}</div>
             </div>
           </div>
         </div>
@@ -57,22 +74,29 @@ export class FontFilePicker {
     `;
     document.body.insertAdjacentHTML('beforeend', dialogHTML);
 
-    this.dialogEl = document.getElementById('picker-dialog')!;
-    this.listEl = document.getElementById('picker-list')!;
-    this.pathEl = document.getElementById('picker-path')!;
+    this.dialogEl = document.getElementById('picker-dialog');
+    this.listEl = document.getElementById('picker-list');
+    this.pathEl = document.getElementById('picker-path');
 
     document.getElementById('picker-back-btn')?.addEventListener('click', () => this.navigateUp());
     document.getElementById('picker-cancel-btn')?.addEventListener('click', () => this.hide());
-  }
 
-  public show(initialPath = '/storage/emulated/0'): void {
-    this.currentPath = initialPath;
-    (this.dialogEl as any).open = true;
-    this.loadDirectory(this.currentPath);
-  }
+    // 列表项用事件委托: 只绑定一次, 渲染只替换内容, 不重复挂监听
+    this.listEl!.addEventListener('click', (e) => {
+      const item = (e.target as HTMLElement).closest('.picker-item') as HTMLElement | null;
+      if (!item) return;
+      const name = item.dataset.name!;
 
-  public hide(): void {
-    (this.dialogEl as any).open = false;
+      if (item.dataset.isdir === 'true') {
+        this.currentPath = this.currentPath === '/' ? `/${name}` : `${this.currentPath}/${name}`;
+        void this.loadDirectory(this.currentPath);
+      } else {
+        const fullPath = `${this.currentPath}/${name}`;
+        const handler = this.onSelect;
+        this.hide();
+        handler?.(fullPath, name);
+      }
+    });
   }
 
   private navigateUp(): void {
@@ -80,22 +104,22 @@ export class FontFilePicker {
     const parts = this.currentPath.split('/').filter(Boolean);
     parts.pop();
     this.currentPath = parts.length === 0 ? '/' : '/' + parts.join('/');
-    this.loadDirectory(this.currentPath);
+    void this.loadDirectory(this.currentPath);
   }
 
   private async loadDirectory(path: string): Promise<void> {
-    this.pathEl.textContent = path;
-    this.listEl.innerHTML = `<div class="picker-loading">正在读取目录...</div>`;
+    this.pathEl!.textContent = path;
+    this.listEl!.innerHTML = `<div class="picker-loading">正在读取目录...</div>`;
 
     try {
       const { items, failed } = await this.readDir(path);
       if (failed) {
-        this.listEl.innerHTML = `<div class="picker-error">无法读取该目录</div>`;
+        this.listEl!.innerHTML = `<div class="picker-error">无法读取该目录</div>`;
         return;
       }
       this.renderList(items);
     } catch (e) {
-      this.listEl.innerHTML = `<div class="picker-error">读取目录异常: ${String(e)}</div>`;
+      this.listEl!.innerHTML = `<div class="picker-error">读取目录异常: ${String(e)}</div>`;
     }
   }
 
@@ -140,7 +164,7 @@ export class FontFilePicker {
 
   private renderList(items: FileItem[]): void {
     if (items.length === 0) {
-      this.listEl.innerHTML = `
+      this.listEl!.innerHTML = `
         <div class="picker-empty">
           <md-icon>find_in_page</md-icon>
           <span>此目录下没有 .ttf 字体文件</span>
@@ -148,7 +172,7 @@ export class FontFilePicker {
       return;
     }
 
-    this.listEl.innerHTML = items
+    this.listEl!.innerHTML = items
       .map(
         (item) => `
       <md-list-item class="picker-item ${item.isDir ? 'is-dir' : 'is-file'}" data-name="${item.name}" data-isdir="${item.isDir}">
@@ -165,21 +189,8 @@ export class FontFilePicker {
     `,
       )
       .join('');
-
-    this.listEl.querySelectorAll('.picker-item').forEach((el) => {
-      el.addEventListener('click', () => {
-        const name = (el as HTMLElement).dataset.name!;
-        const isDir = (el as HTMLElement).dataset.isdir === 'true';
-
-        if (isDir) {
-          this.currentPath = this.currentPath === '/' ? `/${name}` : `${this.currentPath}/${name}`;
-          this.loadDirectory(this.currentPath);
-        } else {
-          const fullPath = `${this.currentPath}/${name}`;
-          this.onSelectCallback(fullPath, name);
-          this.hide();
-        }
-      });
-    });
   }
 }
+
+/** 全局唯一的文件选择器实例 (见 FontFilePicker 的说明) */
+export const fontPicker = new FontFilePicker();
