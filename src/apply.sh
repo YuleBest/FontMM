@@ -162,20 +162,73 @@ else
 fi
 
 echo "[*] 处理行距字距..."
-# 固定行距/字距 (issue #17): 行高取「paint 度量」与「该行使用字体度量」的并集, 而 paint
-# 度量来自家族里与请求字重最接近的条目 —— 本模块 fonts.xml 中 sans-serif 首位正是
-# 英文槽位字体, 因此换字体 (连带中文行距) 都会变。开启后把一个只有度量、没有文字
-# 字形的载体放到家族首位, 行距就钉在模块内置的这套标准上 (Roboto Flex 度量)。
-# 载体随模块打包 (src/system/fonts/), 无需设备端生成; 这里只按开关插/移条目。
+# 固定行距/字距 (issue #17)。行高在 Android 里是「paint 度量」与「该行实际使用字体度量」
+# 的并集 (StaticLayout: lineAscent = min(paint 上升部, 该行字体上升部)), 只能抬高不能压低,
+# 因此两件事一起做才能真的固定住:
+#   1. 把装入 system/fonts 的字体行距度量按比例缩放到同一个总量 (上下比例不变) —— 字形不动,
+#      换字体行距不再变化; 这是关键, 只放载体压不住比它更高的字体
+#   2. 把一个只有度量、没有文字字形的载体放到家族首位, 让 paint 度量那一侧也一致
+# 载体随模块打包 (src/system/fonts/), 无需设备端生成; 档位 (行距总量) 由 WebUI 选。
 METRICS_CARRIER="$SYS_FONT_DIR/FontMM-Metrics.ttf"
+# apply.sh 会写入 system/fonts 的字体清单 (与上方安装列表一致)
+MANAGED_FONTS='SysFont-Regular.ttf
+SysSans-En-Regular.ttf
+SysFont-Static-Regular.ttf
+SysFont-Myanmar.ttf
+SysFont-Hans-Regular.ttf
+SysFont-Hant-Regular.ttf
+SysSans-Hans-Regular.ttf
+SysSans-Hant-Regular.ttf
+DroidSansMono.ttf
+NotoColorEmoji.ttf'
 
-# 开关由 WebUI 写在 FONTS/metrics.txt (随 FONTS 一起保留)
+# 把单个字体的行距度量统一到 target (千分比 em, 如 1450); 只动度量字段, 其余部分不变。
+# 临时文件写在模块根目录, 避免半成品出现在 system/fonts 的 overlay 里。
+unify_one() {
+    local target="$1" file="$2"
+    local tool="$MODDIR/tools/fontmm-subset"
+    local tmp="$MODDIR/.line-metrics.tmp"
+
+    [ -f "$file" ] || return 0
+    if run_tool "$tool" -line-metrics -in "$file" -out "$tmp" -line-total "$target" >/dev/null 2>&1; then
+        mv -f "$tmp" "$file"
+        return 0
+    fi
+    # 字体结构不受支持 (例如字体集合) 时不阻断: 该字体保持原度量
+    rm -f "$tmp"
+    echo "[-] $(basename "$file") 行距度量未统一 (字体结构不受支持), 保持原样"
+    return 1
+}
+
+unify_line_metrics() {
+    local target="$1"
+    local f=""
+    [ -f "$MODDIR/tools/fontmm-subset" ] || {
+        echo "[-] 未找到字体工具, 跳过行距统一"
+        return 1
+    }
+    for f in $MANAGED_FONTS; do
+        unify_one "$target" "$SYS_FONT_DIR/$f"
+    done
+    # 度量载体不在上面的清单里 (它不参与字体安装), 但同样要用这一档度量
+    unify_one "$target" "$METRICS_CARRIER"
+    return 0
+}
+
+# 开关与档位由 WebUI 写在 FONTS/ 下 (随 FONTS 一起保留)
+METRICS_TOTAL="$(cat "$FONTS_DIR/line-height.txt" 2>/dev/null)"
+case "$METRICS_TOTAL" in
+12[0-9][0-9] | 1[3-9][0-9][0-9] | 2[0-9][0-9][0-9]) ;;
+*) METRICS_TOTAL=1450 ;; # 缺省 = 标准档
+esac
+
 METRICS_MODE="off"
 if [ ! -f "$METRICS_CARRIER" ]; then
     echo "[-] 缺少度量载体 $METRICS_CARRIER, 跳过固定行距字距"
 elif [ "$(cat "$FONTS_DIR/metrics.txt" 2>/dev/null)" = "1" ]; then
     METRICS_MODE="on"
-    echo "[*] 已启用固定行距字距 (载体: $(basename "$METRICS_CARRIER"))"
+    echo "[*] 已启用固定行距字距 (行距总量 $METRICS_TOTAL/1000 em)"
+    unify_line_metrics "$METRICS_TOTAL"
 else
     echo "[-] 未启用固定行距字距"
 fi

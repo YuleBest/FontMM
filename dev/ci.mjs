@@ -123,20 +123,21 @@ await check('派生字体配置未被 git 跟踪', async () => {
 // apply.sh 的占位字体映射 与 empty-font.mjs 的占位清单 必须一致
 //
 // apply.sh 里有两类单引号字体名:
-//   1. 多行的字体列表赋值 (hans_fonts/hant_fonts/en_fonts) —— 会被用户字体覆盖的
-//      SysFont*/SysSans* 占位文件, 必须与 empty-font.mjs 的 PLACEHOLDERS 一一对应
-//   2. 单行的系统字体名 (DroidSansMono.ttf / NotoColorEmoji.ttf) —— 直接替换系统
-//      字体文件, 不经过占位机制, 不属于占位清单
-// 按「是否含换行」区分这两类, 与源码结构一致。
+//   1. 会被用户字体覆盖的 SysFont*/SysSans* 占位文件 —— 必须与 empty-font.mjs 的
+//      PLACEHOLDERS 一一对应
+//   2. 直接替换的系统字体 (DroidSansMono.ttf / NotoColorEmoji.ttf) —— 不经过占位机制,
+//      不属于占位清单, 无论出现在单行还是多行列表里都要排除
 await check('apply.sh 占位映射与占位清单一致', async () => {
+  // 直接替换的系统字体: 仓库里是真实文件, 不能被占位脚本清空
+  const systemFonts = new Set(['DroidSansMono.ttf', 'NotoColorEmoji.ttf']);
+
   const applySh = await fsp.readFile(path.join(SRC_DIR, 'apply.sh'), 'utf8');
   const mapped = new Set();
   for (const m of applySh.matchAll(/'([^']*)'/g)) {
     const value = m[1];
-    if (!value.includes('\n')) continue; // 跳过单行系统字体名
     for (const line of value.split('\n')) {
       const name = line.trim();
-      if (name.endsWith('.ttf')) mapped.add(name);
+      if (name.endsWith('.ttf') && !systemFonts.has(name)) mapped.add(name);
     }
   }
   if (mapped.size === 0) throw new Error('未从 apply.sh 解析到占位字体列表 (解析逻辑可能已失效)');
@@ -231,6 +232,13 @@ await check('度量载体与开关文件名一致 (apply.sh / Go / WebUI)', asyn
   const web = /FONTS_DIR\}\/metrics\.txt/.test(metricsTs);
   if (!sh || !golang || !web) {
     throw new Error(`开关文件名不一致 (apply.sh=${sh}, Go=${golang}, WebUI=${web})`);
+  }
+
+  // 行距档位: WebUI 的常量必须包含 apply.sh 的缺省值, 否则界面显示与刷入结果会不一致
+  const shDefault = applySh.match(/METRICS_TOTAL=(\d+)/);
+  if (!shDefault) throw new Error('apply.sh 中未找到行距档位缺省值');
+  if (!metricsTs.includes(shDefault[1])) {
+    throw new Error(`WebUI 未定义 apply.sh 的缺省档位 ${shDefault[1]}`);
   }
 });
 

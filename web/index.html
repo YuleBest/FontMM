@@ -150,10 +150,24 @@
                 <div class="wght-mode-info">
                   <div class="wght-mode-title">固定行距 &amp; 字距</div>
                   <div class="wght-mode-sub" id="metrics-sub">
-                    用内置的度量字体把行距字距钉在标准值上，换字体后行距不再跟着变。开启后需重新「应用」。
+                    把装入字体的行距度量统一到下面的档位，换字体后行距不再跟着变。开启后需重新「应用」。
                   </div>
                 </div>
                 <md-switch id="metrics-switch" aria-label="固定行距字距"></md-switch>
+              </div>
+              <div class="wght-mode-row">
+                <div class="wght-mode-info">
+                  <div class="wght-mode-title">行距档位</div>
+                  <div class="wght-mode-sub" id="metrics-level-sub">
+                    按字身框倍数统一行距：紧凑 1.20 / 标准 1.45 / 宽松
+                    1.60；字体上下的比例保持不变。
+                  </div>
+                </div>
+                <md-outlined-select id="metrics-level-select" label="行距档位">
+                  <md-select-option value="1200">紧凑</md-select-option>
+                  <md-select-option value="1450" selected>标准</md-select-option>
+                  <md-select-option value="1600">宽松</md-select-option>
+                </md-outlined-select>
               </div>
 
               <!-- 字重映射 (各模式实时预览, 修改即切为自定义) -->

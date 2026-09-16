@@ -129,6 +129,142 @@ static const hb_codepoint_t kMetricsSpaceCodes[] = {
     0x3000,  // 全角空格
 };
 
+// ---------- 行距度量改写 (-line-metrics, issue #17) ----------
+//
+// 为什么必须改字体本身: Android 的行高是「paint 度量」与「该行实际使用字体度量」的
+// 并集 (StaticLayout: lineAscent = min(paint 上升部, 该行字体的上升部)), 也就是说只能
+// 抬高、不能压低。只要装入 system/fonts 的字体度量各不相同, 换字体行距就会变;
+// 把一个只有度量的载体放在家族首位也压不住比它更高的字体。
+//
+// 因此这里把字体的行距度量按比例缩放到统一总量 (上下比例保持不变, 避免基线位移过大),
+// 装进去的字体行距一致了, 换字体行距才真正固定。只改 hhea / OS/2 的度量字段,
+// 字形、hmtx、布局表原样保留, 表的长度不变, 因此无需重建文件布局。
+
+static uint16_t rdU16(const unsigned char *p, size_t off) {
+    return static_cast<uint16_t>((p[off] << 8) | p[off + 1]);
+}
+static int16_t rdI16(const unsigned char *p, size_t off) {
+    return static_cast<int16_t>(rdU16(p, off));
+}
+static uint32_t rdU32(const unsigned char *p, size_t off) {
+    return (static_cast<uint32_t>(p[off]) << 24) | (static_cast<uint32_t>(p[off + 1]) << 16) |
+           (static_cast<uint32_t>(p[off + 2]) << 8) | static_cast<uint32_t>(p[off + 3]);
+}
+static void wrU16(unsigned char *p, size_t off, uint16_t v) {
+    p[off] = static_cast<unsigned char>(v >> 8);
+    p[off + 1] = static_cast<unsigned char>(v & 0xff);
+}
+static void wrI16(unsigned char *p, size_t off, int v) {
+    wrU16(p, off, static_cast<uint16_t>(static_cast<int16_t>(v)));
+}
+static void wrU32(unsigned char *p, size_t off, uint32_t v) {
+    p[off] = static_cast<unsigned char>(v >> 24);
+    p[off + 1] = static_cast<unsigned char>((v >> 16) & 0xff);
+    p[off + 2] = static_cast<unsigned char>((v >> 8) & 0xff);
+    p[off + 3] = static_cast<unsigned char>(v & 0xff);
+}
+
+// 表校验和: 按 4 字节求和, 末尾不足 4 字节补 0
+static uint32_t tableChecksum(const unsigned char *data, size_t len) {
+    uint32_t sum = 0;
+    for (size_t i = 0; i < len; i += 4) {
+        uint32_t word = 0;
+        for (size_t j = 0; j < 4; j++) {
+            word <<= 8;
+            if (i + j < len) word |= data[i + j];
+        }
+        sum += word;
+    }
+    return sum;
+}
+
+// sfnt 目录项定位
+struct TableRef {
+    size_t dirOffset = 0;  // 目录项在文件中的位置 (改写校验和用)
+    size_t offset = 0;     // 表数据偏移
+    size_t length = 0;
+    bool found = false;
+};
+
+static TableRef findTable(const unsigned char *data, size_t size, const char *tag) {
+    TableRef ref;
+    if (size < 12) return ref;
+    uint32_t version = rdU32(data, 0);
+    // 只处理单体 sfnt (TrueType / CFF); 字体集合 (ttcf) 需按 face 索引解析, 暂不支持
+    if (version != 0x00010000u && version != 0x4F54544Fu && version != 0x74727565u) return ref;
+    unsigned numTables = rdU16(data, 4);
+    for (unsigned i = 0; i < numTables; i++) {
+        size_t dir = 12 + i * 16;
+        if (dir + 16 > size) return ref;
+        if (memcmp(data + dir, tag, 4) != 0) continue;
+        ref.dirOffset = dir;
+        ref.offset = rdU32(data, dir + 8);
+        ref.length = rdU32(data, dir + 12);
+        if (ref.offset + ref.length > size) return ref;
+        ref.found = true;
+        return ref;
+    }
+    return ref;
+}
+
+// upem (head 表偏移 18 处的 uint16)
+static unsigned unitsPerEm(const unsigned char *data, size_t size) {
+    TableRef head = findTable(data, size, "head");
+    if (!head.found || head.length < 20) return 0;
+    return rdU16(data, head.offset + 18);
+}
+
+// 把行距总量缩放到 targetTotal (字体单位), 上下比例保持; 返回是否改动
+static bool scaleLineMetrics(std::vector<unsigned char> &buf, unsigned targetTotal, int &oldAsc,
+                             int &oldDesc, int &newAsc, int &newDesc) {
+    unsigned char *data = buf.data();
+    size_t size = buf.size();
+
+    TableRef hhea = findTable(data, size, "hhea");
+    if (!hhea.found || hhea.length < 10) return false;
+
+    const int asc = rdI16(data, hhea.offset + 4);
+    const int desc = rdI16(data, hhea.offset + 6);
+    const int gap = rdI16(data, hhea.offset + 8);
+    oldAsc = asc;
+    oldDesc = desc;
+
+    // 原始总量: 上升部 + 下降部 + 行间隙 (lineGap 归零后并入)
+    const int total = asc - desc + gap;
+    if (total <= 0) return false;
+
+    // 按原始上下比例分配目标总量 (比例保持不变 → 基线位置不跳变)
+    const int upper = asc + gap;  // lineGap 视为上升部的一部分
+    newAsc = static_cast<int>(static_cast<long long>(targetTotal) * upper / total);
+    newDesc = newAsc - static_cast<int>(targetTotal);
+    if (newAsc <= 0 || newDesc >= 0) return false;
+
+    wrI16(data, hhea.offset + 4, newAsc);
+    wrI16(data, hhea.offset + 6, newDesc);
+    wrI16(data, hhea.offset + 8, 0);  // lineGap 统一归零
+
+    // OS/2 (版本 0 起字段位置一致): sTypoAscender/Descender/LineGap 与 usWinAscent/Descent
+    TableRef os2 = findTable(data, size, "OS/2");
+    if (os2.found && os2.length >= 74) {
+        wrI16(data, os2.offset + 68, newAsc);
+        wrI16(data, os2.offset + 70, newDesc);
+        wrI16(data, os2.offset + 72, 0);
+        wrU16(data, os2.offset + 74, static_cast<uint16_t>(newAsc));
+        wrU16(data, os2.offset + 76, static_cast<uint16_t>(-newDesc));
+        wrU32(data, os2.dirOffset + 4, tableChecksum(data + os2.offset, os2.length));
+    }
+
+    wrU32(data, hhea.dirOffset + 4, tableChecksum(data + hhea.offset, hhea.length));
+
+    // head.checkSumAdjustment: 归零后对全文件求和, 再取补
+    TableRef head = findTable(data, size, "head");
+    if (!head.found || head.length < 12) return false;
+    wrU32(data, head.offset + 8, 0);
+    const uint32_t sum = tableChecksum(data, size);
+    wrU32(data, head.offset + 8, 0xB1B0AFBAu - sum);
+    return true;
+}
+
 // ---------- 文件读写 ----------
 
 static bool readFile(const char *path, std::vector<char> &out) {
@@ -165,8 +301,10 @@ static void usage(const char *argv0) {
             "    [-minimal]                         仅保留 ASCII/西欧 (默认含希腊/西里尔)\n"
             "    [-keep-cjk]                        额外保留 CJK 区块 (默认不保留)\n"
             "  %s -metrics -in <font.ttf> -out <out.ttf>\n"
-            "                                       挖空: 只留度量与空格, 用作行距字距载体\n",
-            argv0, argv0, argv0);
+            "                                       挖空: 只留度量与空格, 用作行距字距载体\n"
+            "  %s -line-metrics -in <font.ttf> -out <out.ttf> -line-total <permille>\n"
+            "                                       把行距度量缩放到统一总量 (千分比 em)\n",
+            argv0, argv0, argv0, argv0);
 }
 
 int main(int argc, char **argv) {
@@ -176,6 +314,8 @@ int main(int argc, char **argv) {
     bool keepCjk = false;
     bool minimal = false;
     bool metricsMode = false;
+    bool lineMetricsMode = false;
+    int lineTotal = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-check") == 0 && i + 1 < argc) {
@@ -184,12 +324,16 @@ int main(int argc, char **argv) {
             inPath = argv[++i];
         } else if (strcmp(argv[i], "-out") == 0 && i + 1 < argc) {
             outPath = argv[++i];
+        } else if (strcmp(argv[i], "-line-total") == 0 && i + 1 < argc) {
+            lineTotal = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-keep-cjk") == 0) {
             keepCjk = true;
         } else if (strcmp(argv[i], "-minimal") == 0) {
             minimal = true;
         } else if (strcmp(argv[i], "-metrics") == 0) {
             metricsMode = true;
+        } else if (strcmp(argv[i], "-line-metrics") == 0) {
+            lineMetricsMode = true;
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             usage(argv[0]);
             return 0;
@@ -223,6 +367,40 @@ int main(int argc, char **argv) {
         printf("cjk=%u latin=%u\n", cjk, latin);
         // 含 CJK 字形 → 退出码 1 (需要子集化)
         return cjk > 0 ? 1 : 0;
+    }
+
+    // ---- 行距度量改写模式 ----
+    if (lineMetricsMode) {
+        if (!inPath || !outPath || lineTotal <= 0) {
+            fprintf(stderr, "[x] 需要 -in / -out 与 -line-total <千分比 em>\n");
+            usage(argv[0]);
+            return 2;
+        }
+        std::vector<char> src;
+        if (!readFile(inPath, src)) {
+            fprintf(stderr, "[x] 无法读取: %s\n", inPath);
+            return 2;
+        }
+        std::vector<unsigned char> buf(src.begin(), src.end());
+        unsigned upem = unitsPerEm(buf.data(), buf.size());
+        if (upem == 0) {
+            fprintf(stderr, "[x] 不是可解析的字体 (缺少 head 表): %s\n", inPath);
+            return 2;
+        }
+        unsigned target = static_cast<unsigned>(static_cast<long long>(upem) * lineTotal / 1000);
+        int oldAsc = 0, oldDesc = 0, newAsc = 0, newDesc = 0;
+        if (!scaleLineMetrics(buf, target, oldAsc, oldDesc, newAsc, newDesc)) {
+            fprintf(stderr, "[x] 改写行距度量失败 (不受支持的字体结构): %s\n", inPath);
+            return 1;
+        }
+        if (!writeFile(outPath, reinterpret_cast<const char *>(buf.data()), buf.size())) {
+            fprintf(stderr, "[x] 写入失败: %s\n", outPath);
+            return 1;
+        }
+        // 机器可读: 旧/新度量与每 em 占比, 供调用方在日志中核对
+        printf("line_metrics upem=%u old=%d/%d new=%d/%d total=%u\n", upem, oldAsc, oldDesc,
+               newAsc, newDesc, target);
+        return 0;
     }
 
     // ---- 子集化模式 ----

@@ -195,24 +195,36 @@ node dev/build-subset.mjs
 src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / 退出码 1
 ```
 
-## 固定行距 / 字距（度量载体，issue #17）
+## 固定行距 / 字距（issue #17）
 
-**问题**：安卓的行高取两者的并集 —— `Paint.getFontMetrics()` 的度量（取自 typeface 家族里
-与请求字重**最接近的那个条目**，见 hwui `Paint::getMetricsInternal` → Minikin
-`FontCollection::baseFontFaked`），与该行**实际使用字体**的度量（`StaticLayout` 取
-`min(ascent)` / `max(descent)`）。本模块 `fonts.xml` 中 `sans-serif` 首位正是「英文 & 数字」
-槽位字体，所以换英文字体（连带中文行距）都会跟着变。
+**问题**：安卓的行高取「paint 度量」与「该行实际使用字体度量」的**并集** —— `StaticLayout`
+里 `lineAscent = min(paint.getFontMetrics().ascent, 该行字体的 ascent)`（descent 取 max），
+其中 paint 度量取自 typeface 家族里与请求字重最接近的条目（hwui
+`Paint::getMetricsInternal` → Minikin `FontCollection::baseFontFaked`）。并集**只能抬高、
+不能压低**，所以只要装入字体的行距各不相同，换字体行距就会变；只在家族首位放一个度量载体，
+也压不住比它更高的字体（第一版就是这么失败的）。
 
-**做法**：用一个只有度量、没有文字字形的载体字体（`src/system/fonts/FontMM-Metrics.ttf`，
-16KB），插到各家族首位当基准。9 档字重必须全覆盖：家族匹配是「取与请求字重最接近的条目」，
-只放 400 档的话粗体等仍会落到用户字体上。
+**做法**（两件事一起做才真的固定住）：
 
-载体由 **Roboto Flex**（Google Fonts，OFL-1.1，无保留字体名）裁出，度量 `1900 / -500`
-（upem 2048）= 1.171 em，即 AOSP 的 Roboto 拉丁基线；字符集只剩 U+0020 / U+00A0。
-文件直接入库（与 `NotoColorEmoji.ttf` 等内置 fallback 字体同样的做法），设备端不做任何生成，
-许可文本见 `src/system/fonts/LICENSE-OFL-RobotoFlex`。
+1. **统一装入字体的行距度量**（关键）：`fontmm-subset -line-metrics` 把 `apply.sh` 装入
+   `system/fonts` 的字体（8 个槽位目标 + `DroidSansMono.ttf` + `NotoColorEmoji.ttf`）的
+   `hhea` / `OS/2` 行距**按比例**缩放到同一总量，`lineGap` 归零、上下比例保持不变（避免基线
+   跳变与文字重叠）。只改度量字段，字形、`hmtx`、布局表原样保留，表长度不变所以无需重排文件；
+   只有 `hhea` / `OS/2` 的表校验和与 `head.checkSumAdjustment` 需要重算。
+   `FONTS/` 里的原始字体不动，改写只作用于装入的那一份。
+2. **度量载体**：`src/system/fonts/FontMM-Metrics.ttf`（16KB，由 Roboto Flex 挖空而来，只有
+   度量与空格字形）插到各家族首位，让 paint 度量那一侧也一致。9 档字重全覆盖 —— 家族匹配是
+   「取与请求字重最接近的条目」，只放 400 档的话粗体等仍会落到用户字体上。
 
-需要重新生成或换度量基准时（改度量来源只需换 `-in` 的文件）：
+档位（行距总量，千分比 em）由 WebUI 选，写在 `FONTS/line-height.txt`：紧凑 `1200` /
+标准 `1450` / 宽松 `1600`，缺省 1450。设备端工具用法：
+
+```bash
+fontmm-subset -line-metrics -in <font.ttf> -out <out.ttf> -line-total <permille>
+# 输出: line_metrics upem=1000 old=1020/-300 new=927/-273 total=1200
+```
+
+**载体来源与重新生成**（换度量来源只需换 `-in` 的文件）：
 
 ```bash
 curl -Lo /tmp/RobotoFlex.ttf 'https://github.com/google/fonts/raw/main/ofl/robotoflex/RobotoFlex%5BGRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC,opsz,slnt,wdth,wght%5D.ttf'
@@ -222,14 +234,21 @@ g++ -O1 -std=c++17 -DHB_NO_MT -I dev/.cache/harfbuzz/harfbuzz-*/src \
 /tmp/fontmm-subset-host -metrics -in /tmp/RobotoFlex.ttf -out src/system/fonts/FontMM-Metrics.ttf
 ```
 
-**分工**：`apply.sh` 读开关 `FONTS/metrics.txt`（WebUI 写）→ 调
-`fontmm-wght -mode 0 -metrics on|off -sync` 插入/移除载体条目（`auto` 表示由工具自己读
-开关文件）。载体缺失时不插入条目，避免 `fonts.xml` 引用缺失字体；关闭是幂等的，能把 XML
-逐字节还原（Go 单测覆盖）。`dev/ci.mjs` 校验载体文件名在 `apply.sh` 与 Go 两侧一致、
-载体文件确实随仓库提供。
+Roboto Flex 为 OFL-1.1 且无保留字体名，许可文本见 `src/system/fonts/LICENSE-OFL-RobotoFlex`。
 
-**已知限制**：只能把行距钉在一个**下限**——所选字体度量比载体大时，该行仍取字体自身的
-度量（并集语义决定），行距不会因此变小。另外 DenyList 应用里载体不会被预加载，行距退回字体自身。
+**分工**：`apply.sh` 读 `FONTS/metrics.txt`（开关）与 `FONTS/line-height.txt`（档位）→
+统一各字体与载体的行距 → 调 `fontmm-wght -mode 0 -metrics on|off -sync` 插入/移除载体条目
+（`auto` 表示由工具自己读开关文件）。载体缺失时不插入条目，避免 `fonts.xml` 引用缺失字体；
+关闭是幂等的，能把 XML 逐字节还原（Go 单测覆盖）。`dev/ci.mjs` 校验载体文件名在 `apply.sh`
+与 Go 两侧一致、载体确实随仓库提供、档位缺省值与 WebUI 常量一致。
+
+**已知限制**：
+
+- 只统一「会被安装替换」的字体。模块自带的生僻字 fallback（Plangothic / Tibetan /
+  Braille 等）保持自身度量 —— 它们的字形本来就高（Tibetan 约 2.8 em、SatisarSharada
+  约 4.2 em），强行压低会叠行。含这些字形的行仍会比标准行更高。
+- 字体集合（`.ttc`）不是单体 sfnt，会被跳过（该字体保持原度量，不阻断安装）。
+- DenyList 应用里载体不会被预加载，行距退回字体自身（字体已被统一，因此仍是同一档）。
 
 ## 可复现构建
 
