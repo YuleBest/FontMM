@@ -371,6 +371,28 @@ python3 dev/check-unicode-coverage.py "Archaic" "Seal"       # 只测指定区�
 5. **字体预加载**（`zygisk/arm64-v8a.so`）：App 进程 specialize 前，模块把 FontMM 的字体文件
    预读进系统字体缓存，使被「卸载模块」的 App 仍能正常渲染字体
 
+## 发布流程
+
+**发布资产由 CI 构建，不要在本地打包后手动上传** —— `Release` 工作流在 release 发布时
+（`on: release: [published]`）会重新构建并上传 `dist/*.zip` 与 `dist/*.zip.sha256`；
+手动传一遍既慢又会被 CI 覆盖（本地 zip 的时间戳与 CI 不同，校验和也不一样）。
+
+1. 改 `src/module.prop` 的 `version` / `versionCode`，同步 `update.json`（版本号与 `zipUrl`）
+2. `changelog.md` 写本次条目：**相对上一个已发布版本的用户可见变化**，不必逐条罗列 commit
+3. `pnpm check` → commit（`chore: 发布 vX (版本码)`）→ push → 等 `Build & Upload Artifacts` 通过
+4. 打 tag 并推送：`git tag -a vX -m "FontMM vX" && git push origin vX`
+5. 创建预发布（**不传文件**）：
+
+   ```bash
+   gh release create vX --title "vX" --notes-file /tmp/relnotes.md --prerelease
+   ```
+
+   `Release` 工作流随即构建并上传 4 个资产（template / preplace 的 zip 与 `.sha256`）
+6. 等 `Release` 工作流成功后，验证 `update.json` 的 `zipUrl` 可达（HTTP 200）——
+   资产上传完成前该链接是 404
+
+> 本地 `pnpm build` 只用于本地测试与实机验证；发布产物一律以 CI 为准。
+
 ## 相关文档
 
 - [README](./README.md) — 用户文档
