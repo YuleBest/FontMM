@@ -203,25 +203,30 @@ src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / �
 `min(ascent)` / `max(descent)`）。本模块 `fonts.xml` 中 `sans-serif` 首位正是「英文 & 数字」
 槽位字体，所以换英文字体（连带中文行距）都会跟着变。
 
-**做法**：把一份现成字体**挖空**成只有度量、没有文字字形的载体，插到各家族首位。9 档字重
-必须全覆盖：家族匹配是「取与请求字重最接近的条目」，只放 400 档的话粗体等仍会落到用户字体上。
+**做法**：用一个只有度量、没有文字字形的载体字体（`src/system/fonts/FontMM-Metrics.ttf`，
+16KB），插到各家族首位当基准。9 档字重必须全覆盖：家族匹配是「取与请求字重最接近的条目」，
+只放 400 档的话粗体等仍会落到用户字体上。
 
-载体来源按优先级取系统自带、且不被本模块覆盖的字体：
+载体由 **Roboto Flex**（Google Fonts，OFL-1.1，无保留字体名）裁出，度量 `1900 / -500`
+（upem 2048）= 1.171 em，即 AOSP 的 Roboto 拉丁基线；字符集只剩 U+0020 / U+00A0。
+文件直接入库（与 `NotoColorEmoji.ttf` 等内置 fallback 字体同样的做法），设备端不做任何生成，
+许可文本见 `src/system/fonts/LICENSE-OFL-RobotoFlex`。
 
-| 顺序 | 路径 | 度量（hhea） |
-| ---- | ---- | ------------ |
-| 1 | `/system/fonts/NotoSansCJKjp-Regular.otc`（兼容 `-Regular.ttc` / `-sc-Regular.otf`） | 1160 / -288 = 1.448 em（AOSP 中文基线） |
-| 2 | `/system/fonts/Roboto-Regular.ttf` | 1900 / -500 = 1.171 em（拉丁基线） |
+需要重新生成或换度量基准时（改度量来源只需换 `-in` 的文件）：
 
-挖空由 `fontmm-subset -metrics` 完成：Noto CJK 从 19.6MB 变 2.2KB，`hhea` 度量与空格字宽
-原样保留，字符集只剩 U+0020 / U+00A0 / U+3000。文字仍由用户选择的字体渲染，载体只贡献
-行距与空格字宽。
+```bash
+curl -Lo /tmp/RobotoFlex.ttf 'https://github.com/google/fonts/raw/main/ofl/robotoflex/RobotoFlex%5BGRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC,opsz,slnt,wdth,wght%5D.ttf'
+g++ -O1 -std=c++17 -DHB_NO_MT -I dev/.cache/harfbuzz/harfbuzz-*/src \
+  dev/.cache/harfbuzz/harfbuzz-*/src/harfbuzz-subset.cc \
+  native/src/subset/fontmm-subset.cc -o /tmp/fontmm-subset-host
+/tmp/fontmm-subset-host -metrics -in /tmp/RobotoFlex.ttf -out src/system/fonts/FontMM-Metrics.ttf
+```
 
-**分工**：`apply.sh` 读开关 `FONTS/metrics.txt`（WebUI 写）→ 生成载体到
-`system/fonts/FontMM-Metrics.ttf` → 调 `fontmm-wght -mode 0 -metrics on|off -sync` 插入/移除
-条目（`auto` 表示由工具自己读开关文件）。`on` 但载体文件不存在时不插入条目，避免
-`fonts.xml` 引用缺失字体；关闭是幂等的，能把 XML 逐字节还原（Go 单测覆盖）。
-`dev/ci.mjs` 校验载体文件名在 `apply.sh` 与 Go 两侧一致。
+**分工**：`apply.sh` 读开关 `FONTS/metrics.txt`（WebUI 写）→ 调
+`fontmm-wght -mode 0 -metrics on|off -sync` 插入/移除载体条目（`auto` 表示由工具自己读
+开关文件）。载体缺失时不插入条目，避免 `fonts.xml` 引用缺失字体；关闭是幂等的，能把 XML
+逐字节还原（Go 单测覆盖）。`dev/ci.mjs` 校验载体文件名在 `apply.sh` 与 Go 两侧一致、
+载体文件确实随仓库提供。
 
 **已知限制**：只能把行距钉在一个**下限**——所选字体度量比载体大时，该行仍取字体自身的
 度量（并集语义决定），行距不会因此变小。另外 DenyList 应用里载体不会被预加载，行距退回字体自身。

@@ -210,6 +210,21 @@ await check('度量载体与开关文件名一致 (apply.sh / Go / WebUI)', asyn
     throw new Error(`载体文件名不一致: apply.sh=${carrier[1]}, Go=${goCarrier[1]}`);
   }
 
+  // 载体随模块打包, 缺失时开关会静默失效
+  const carrierFile = path.join(SRC_DIR, 'system', 'fonts', carrier[1]);
+  try {
+    const { size } = await fsp.stat(carrierFile);
+    if (size === 0) throw new Error('文件为空');
+  } catch (e) {
+    throw new Error(`缺少度量载体 ${path.relative(ROOT, carrierFile)} (${e.message})`);
+  }
+
+  // 占位字体脚本会把列表内的文件清空, 载体不能被卷进去
+  const emptyFont = await fsp.readFile(path.join(ROOT, 'dev', 'empty-font.mjs'), 'utf8');
+  if (emptyFont.includes(carrier[1])) {
+    throw new Error(`dev/empty-font.mjs 的占位列表包含度量载体 ${carrier[1]}, 会被清空`);
+  }
+
   // 开关文件名: apply.sh 与 Go 读、WebUI 写, 三处必须同名
   const sh = /\$\{?FONTS_DIR\}?\/metrics\.txt/.test(applySh);
   const golang = /"FONTS", "metrics\.txt"/.test(go);

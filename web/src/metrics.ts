@@ -4,9 +4,9 @@
 // 度量来自 typeface 家族里与请求字重最接近的那个条目 —— 本模块的 fonts.xml 中
 // sans-serif 首个条目正是英文槽位字体, 于是换英文字体 (进而中文行距) 都会跟着变。
 //
-// 做法: 让 apply.sh 把系统自带的现成字体挖空 (只留度量与空格字形), 作为家族首位
-// 的度量载体; 开关记在 FONTS/metrics.txt, 由 apply.sh 里的 fontmm-wght 按开关
-// 插入/移除载体条目。
+// 做法: 模块内置一个只有度量、没有文字字形的载体字体 (FontMM-Metrics.ttf, 由
+// Roboto Flex 裁出), 开启后由 apply.sh 里的 fontmm-wght 把它插到各家族首位当基准。
+// 开关记在 FONTS/metrics.txt。
 import '@material/web/switch/switch.js';
 import { exec, toast } from './ksu';
 import { FONTS_DIR } from './constants';
