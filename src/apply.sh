@@ -161,4 +161,63 @@ else
     fi
 fi
 
+echo "[*] 处理行距字距..."
+# 固定行距/字距 (issue #17): 行高取「paint 度量」与「该行使用字体度量」的并集, 而 paint
+# 度量来自家族里与请求字重最接近的条目 —— 本模块 fonts.xml 中 sans-serif 首位正是
+# 英文槽位字体, 因此换字体 (连带中文行距) 都会变。开启后把一个只有度量、没有文字
+# 字形的载体放到家族首位, 行距就钉在系统自带的这套标准上。
+# 载体来源: 系统自带的现成字体 (优先中文标准 Noto CJK, 退回 Roboto), 现场挖空。
+METRICS_CARRIER="$SYS_FONT_DIR/FontMM-Metrics.ttf"
+
+build_metrics_carrier() {
+    local tool="$MODDIR/tools/fontmm-subset"
+    local src="" f=""
+
+    for f in \
+        /system/fonts/NotoSansCJKjp-Regular.otc \
+        /system/fonts/NotoSansCJK-Regular.ttc \
+        /system/fonts/NotoSansCJKsc-Regular.otf \
+        /system/fonts/Roboto-Regular.ttf; do
+        [ -f "$f" ] && src="$f" && break
+    done
+
+    if [ -z "$src" ]; then
+        echo "[-] 系统里没有可用作度量的字体, 跳过固定行距字距"
+        return 1
+    fi
+    if [ ! -f "$tool" ]; then
+        echo "[-] 未找到字体工具, 跳过固定行距字距"
+        return 1
+    fi
+
+    echo "[*] 挖空 $(basename "$src") 作为度量载体..."
+    if ! run_tool "$tool" -metrics -in "$src" -out "$METRICS_CARRIER" 2>&1; then
+        echo "[!] 生成度量载体失败, 跳过固定行距字距"
+        rm -f "$METRICS_CARRIER"
+        return 1
+    fi
+    return 0
+}
+
+# 开关由 WebUI 写在 FONTS/metrics.txt (随 FONTS 一起保留)
+METRICS_MODE="off"
+if [ "$(cat "$FONTS_DIR/metrics.txt" 2>/dev/null)" = "1" ]; then
+    METRICS_MODE="on"
+    if ! build_metrics_carrier; then
+        METRICS_MODE="off"
+    fi
+else
+    echo "[-] 未启用固定行距字距"
+    rm -f "$METRICS_CARRIER"
+fi
+
+# 按开关插/移载体条目 (mode 0 不动字重, 与 WebUI 的字重覆写互不影响)
+if [ -f "$MODDIR/tools/fontmm-wght" ]; then
+    if run_tool "$MODDIR/tools/fontmm-wght" -mode 0 -metrics "$METRICS_MODE" -xml-dir "$MODDIR" -sync >/dev/null 2>&1; then
+        echo "[✓] 已同步字体配置 (固定行距字距: $METRICS_MODE)"
+    else
+        echo "[!] 同步字体配置失败, 固定行距字距可能未生效"
+    fi
+fi
+
 echo "[*] 全部完成, 重启后生效"

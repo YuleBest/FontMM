@@ -195,6 +195,30 @@ await check('Zygisk 预热字体清单与 apply.sh 一致', async () => {
   }
 });
 
+// 固定行距字距 (issue #17): apply.sh 生成载体、Go 工具插入条目, 两边靠文件名耦合。
+// 名字一旦漂移, fonts.xml 就会引用一个不存在的字体, 表现为功能静默失效。
+await check('度量载体与开关文件名一致 (apply.sh / Go / WebUI)', async () => {
+  const applySh = await fsp.readFile(path.join(SRC_DIR, 'apply.sh'), 'utf8');
+  const go = await fsp.readFile(path.join(ROOT, 'golang', 'internal', 'wght', 'wght.go'), 'utf8');
+  const metricsTs = await fsp.readFile(path.join(WEB_DIR, 'src', 'metrics.ts'), 'utf8');
+
+  const carrier = applySh.match(/METRICS_CARRIER="\$SYS_FONT_DIR\/([A-Za-z0-9_.-]+)"/);
+  if (!carrier) throw new Error('apply.sh 中未找到 METRICS_CARRIER 定义');
+  const goCarrier = go.match(/MetricsFontFile\s*=\s*"([A-Za-z0-9_.-]+)"/);
+  if (!goCarrier) throw new Error('wght.go 中未找到 MetricsFontFile 常量');
+  if (carrier[1] !== goCarrier[1]) {
+    throw new Error(`载体文件名不一致: apply.sh=${carrier[1]}, Go=${goCarrier[1]}`);
+  }
+
+  // 开关文件名: apply.sh 与 Go 读、WebUI 写, 三处必须同名
+  const sh = /\$\{?FONTS_DIR\}?\/metrics\.txt/.test(applySh);
+  const golang = /"FONTS", "metrics\.txt"/.test(go);
+  const web = /FONTS_DIR\}\/metrics\.txt/.test(metricsTs);
+  if (!sh || !golang || !web) {
+    throw new Error(`开关文件名不一致 (apply.sh=${sh}, Go=${golang}, WebUI=${web})`);
+  }
+});
+
 // 前端脚本引用的 dev 入口必须存在 (避免重命名后 package.json 指向不存在的文件)
 await check('package.json 中引用的 dev 脚本存在', async () => {
   const pkg = JSON.parse(await fsp.readFile(path.join(ROOT, 'package.json'), 'utf8'));

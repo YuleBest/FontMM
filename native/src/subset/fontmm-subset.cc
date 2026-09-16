@@ -21,6 +21,8 @@
 //       生成子集。默认保留拉丁/希腊/西里尔与常用符号;
 //       -minimal 仅保留 ASCII/西欧 (体积更小, 但希腊/西里尔会缺字);
 //       -keep-cjk 额外保留 CJK 区块 (默认不保留)。
+//   fontmm-subset -metrics -in <font.ttf> -out <carrier.ttf>
+//       把现成字体挖空: 只留度量与各类空格字形, 用作固定行距/字距的载体 (issue #17)。
 
 #include <cstdio>
 #include <cstdlib>
@@ -112,6 +114,21 @@ static unsigned countCoverage(hb_face_t *face, const Range (&ranges)[N]) {
     return total;
 }
 
+// 度量载体模式 (-metrics, issue #17) 保留的码点: 仅各类空格。
+//
+// 目的不是裁文字, 而是把一份现成字体「内部挖空」: 只留 .notdef 与空格字形,
+// 行距与空格字宽等度量 (hhea / OS/2 / hmtx) 原样保留, 得到一个没有文字字形、
+// 却能提供标准行字距的度量载体, 作为 fonts.xml 家族首个条目充当 base 字体
+// (Android 的 paint 度量取自家族里与请求字重最接近的条目)。
+//
+// 为什么连空格也保留: 这是该字体唯一能影响「字距」的地方 —— 文字仍由用户
+// 选择的字体渲染, 只有空格宽度被钉在这份标准上。
+static const hb_codepoint_t kMetricsSpaceCodes[] = {
+    0x0020,  // 空格
+    0x00A0,  // 不换行空格
+    0x3000,  // 全角空格
+};
+
 // ---------- 文件读写 ----------
 
 static bool readFile(const char *path, std::vector<char> &out) {
@@ -146,8 +163,10 @@ static void usage(const char *argv0) {
             "  %s -check <font.ttf>                 检测是否含 CJK 字形 (含则退出码 1)\n"
             "  %s -in <font.ttf> -out <out.ttf>     生成英文子集\n"
             "    [-minimal]                         仅保留 ASCII/西欧 (默认含希腊/西里尔)\n"
-            "    [-keep-cjk]                        额外保留 CJK 区块 (默认不保留)\n",
-            argv0, argv0);
+            "    [-keep-cjk]                        额外保留 CJK 区块 (默认不保留)\n"
+            "  %s -metrics -in <font.ttf> -out <out.ttf>\n"
+            "                                       挖空: 只留度量与空格, 用作行距字距载体\n",
+            argv0, argv0, argv0);
 }
 
 int main(int argc, char **argv) {
@@ -156,6 +175,7 @@ int main(int argc, char **argv) {
     const char *outPath = nullptr;
     bool keepCjk = false;
     bool minimal = false;
+    bool metricsMode = false;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-check") == 0 && i + 1 < argc) {
@@ -168,6 +188,8 @@ int main(int argc, char **argv) {
             keepCjk = true;
         } else if (strcmp(argv[i], "-minimal") == 0) {
             minimal = true;
+        } else if (strcmp(argv[i], "-metrics") == 0) {
+            metricsMode = true;
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             usage(argv[0]);
             return 0;
@@ -232,15 +254,18 @@ int main(int argc, char **argv) {
     }
 
     hb_set_t *unicodes = hb_subset_input_unicode_set(input);
-    if (minimal) {
+    if (metricsMode) {
+        for (hb_codepoint_t cp : kMetricsSpaceCodes) hb_set_add(unicodes, cp);
+    } else if (minimal) {
         addRanges(unicodes, kMinimalRanges, face);
     } else {
         addRanges(unicodes, kLatinRanges, face);
     }
-    if (keepCjk) addRanges(unicodes, kCjkRanges, face);
+    if (!metricsMode && keepCjk) addRanges(unicodes, kCjkRanges, face);
 
-    // NOTDEF_OUTLINE: 保留 .notdef 字形轮廓。缺失时部分渲染器会显示空白框异常
-    hb_subset_input_set_flags(input, HB_SUBSET_FLAGS_NOTDEF_OUTLINE);
+    // NOTDEF_OUTLINE: 保留 .notdef 字形轮廓。缺失时部分渲染器会显示空白框异常。
+    // 度量载体不需要: 它只覆盖空格, .notdef 永远不会被用到, 留空更小。
+    if (!metricsMode) hb_subset_input_set_flags(input, HB_SUBSET_FLAGS_NOTDEF_OUTLINE);
     // 注: 不设置 NO_HINTING —— 保留渲染提示, 小字号下更清晰
     // 注: 不设置 NO_LAYOUT_CLOSURE —— 保留 GSUB/GPOS 闭包, 连字与字距正常
 
@@ -272,6 +297,19 @@ int main(int argc, char **argv) {
         residual = countCoverage(subset, kCjkRanges);
     }
     printf("in=%zu out=%u residual_cjk=%u\n", data.size(), len, residual);
+
+    // 度量载体: 报告挖空后剩下的度量, 调用方据此在日志里确认行距来源与量级
+    if (metricsMode) {
+        hb_font_t *metricsFont = hb_font_create(subset);
+        hb_font_extents_t ext;
+        memset(&ext, 0, sizeof(ext));
+        if (hb_font_get_h_extents(metricsFont, &ext)) {
+            printf("metrics ascender=%d descender=%d line_gap=%d\n",
+                   static_cast<int>(ext.ascender), static_cast<int>(ext.descender),
+                   static_cast<int>(ext.line_gap));
+        }
+        hb_font_destroy(metricsFont);
+    }
 
     hb_blob_destroy(outBlob);
     hb_face_destroy(subset);

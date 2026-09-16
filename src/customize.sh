@@ -78,6 +78,14 @@ IMPORT_OLD_FONTS() {
             log "旧包没有 $f, 使用新包字体"
         fi
     done
+
+    # 用户设置 (字重模式/字重映射/固定行距开关) 同样继承:
+    # 它们在 FONTS/ 下, 而模块更新会重建整个模块目录, 不继承就得每次重设
+    for f in wght-mode.txt wght-map.txt metrics.txt; do
+        if [ -f "$old_fonts/$f" ]; then
+            cp -f "$old_fonts/$f" "$MOD_WORK_PATH/$f" && log "已继承设置: $f"
+        fi
+    done
 }
 
 # ---------- 系统检查 ----------
@@ -268,7 +276,7 @@ system/system_ext/etc/fonts_ule.xml"
     local wght="$MODPATH/tools/fontmm-wght"
     if [ -f "$wght" ]; then
         chmod 0755 "$wght" 2>/dev/null
-        if "$wght" -mode 0 -sync -xml-dir "$MODPATH" >/dev/null 2>&1; then
+        if "$wght" -mode 0 -metrics auto -sync -xml-dir "$MODPATH" >/dev/null 2>&1; then
             log "已同步派生字体配置"
         else
             log "同步派生配置失败 (可忽略, 使用内置副本)"

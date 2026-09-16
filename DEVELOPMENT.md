@@ -41,7 +41,7 @@ pnpm build                               # 完整构建
 | `src/` | 模块本体（打包进 zip 的根目录）：刷入脚本、`apply.sh`、字体配置、设备端工具 |
 | `web/` | WebUI 源码（Vite + TypeScript + Material Web），构建产物输出到 `src/webroot` |
 | `native/` | Zygisk 字体预加载模块（C++） |
-| `golang/` | `fontmm-wght`，字重覆写工具 |
+| `golang/` | `fontmm-wght`，字重覆写与字体配置改写工具 |
 | `dev/` | 构建与开发脚本 |
 
 ## 构建与打包
@@ -169,6 +169,18 @@ fontmm-subset -check <font.ttf>              # 检测含 CJK 则退出码 1
 fontmm-subset -in <f.ttf> -out <o.ttf>       # 生成子集 (默认保留拉丁/希腊/西里尔)
   [-minimal]                                 # 仅 ASCII/西欧 (体积更小, 但会缺字)
   [-keep-cjk]                                # 额外保留 CJK 区块
+fontmm-subset -metrics -in <f.ttf> -out <o>  # 挖空: 只留度量与空格字形 (见下节)
+```
+
+**本地验证挖空/子集**：harfbuzz 源码就在 `dev/.cache/harfbuzz/` 下，可以直接用宿主编译器
+编一份本机可执行文件（不需要 NDK），拿本机字体试效果：
+
+```bash
+g++ -O1 -std=c++17 -DHB_NO_MT -I dev/.cache/harfbuzz/harfbuzz-*/src \
+  dev/.cache/harfbuzz/harfbuzz-*/src/harfbuzz-subset.cc \
+  native/src/subset/fontmm-subset.cc -o /tmp/fontmm-subset-host   # 约 90s
+/tmp/fontmm-subset-host -metrics -in /usr/share/fonts/opentype/noto/NotoSansCJK-Black.ttc -out /tmp/c
+fc-scan --format '%{fontformat} %{charset}\n' /tmp/c              # 应只剩 20 a0 3000
 ```
 
 **harfbuzz 构建缓存**：harfbuzz 源码解压后 97MB，不入库，由 `dev/lib/harfbuzz.mjs`
@@ -182,6 +194,37 @@ fontmm-subset -in <f.ttf> -out <o.ttf>       # 生成子集 (默认保留拉丁/
 node dev/build-subset.mjs
 src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / 退出码 1
 ```
+
+## 固定行距 / 字距（度量载体，issue #17）
+
+**问题**：安卓的行高取两者的并集 —— `Paint.getFontMetrics()` 的度量（取自 typeface 家族里
+与请求字重**最接近的那个条目**，见 hwui `Paint::getMetricsInternal` → Minikin
+`FontCollection::baseFontFaked`），与该行**实际使用字体**的度量（`StaticLayout` 取
+`min(ascent)` / `max(descent)`）。本模块 `fonts.xml` 中 `sans-serif` 首位正是「英文 & 数字」
+槽位字体，所以换英文字体（连带中文行距）都会跟着变。
+
+**做法**：把一份现成字体**挖空**成只有度量、没有文字字形的载体，插到各家族首位。9 档字重
+必须全覆盖：家族匹配是「取与请求字重最接近的条目」，只放 400 档的话粗体等仍会落到用户字体上。
+
+载体来源按优先级取系统自带、且不被本模块覆盖的字体：
+
+| 顺序 | 路径 | 度量（hhea） |
+| ---- | ---- | ------------ |
+| 1 | `/system/fonts/NotoSansCJKjp-Regular.otc`（兼容 `-Regular.ttc` / `-sc-Regular.otf`） | 1160 / -288 = 1.448 em（AOSP 中文基线） |
+| 2 | `/system/fonts/Roboto-Regular.ttf` | 1900 / -500 = 1.171 em（拉丁基线） |
+
+挖空由 `fontmm-subset -metrics` 完成：Noto CJK 从 19.6MB 变 2.2KB，`hhea` 度量与空格字宽
+原样保留，字符集只剩 U+0020 / U+00A0 / U+3000。文字仍由用户选择的字体渲染，载体只贡献
+行距与空格字宽。
+
+**分工**：`apply.sh` 读开关 `FONTS/metrics.txt`（WebUI 写）→ 生成载体到
+`system/fonts/FontMM-Metrics.ttf` → 调 `fontmm-wght -mode 0 -metrics on|off -sync` 插入/移除
+条目（`auto` 表示由工具自己读开关文件）。`on` 但载体文件不存在时不插入条目，避免
+`fonts.xml` 引用缺失字体；关闭是幂等的，能把 XML 逐字节还原（Go 单测覆盖）。
+`dev/ci.mjs` 校验载体文件名在 `apply.sh` 与 Go 两侧一致。
+
+**已知限制**：只能把行距钉在一个**下限**——所选字体度量比载体大时，该行仍取字体自身的
+度量（并集语义决定），行距不会因此变小。另外 DenyList 应用里载体不会被预加载，行距退回字体自身。
 
 ## 可复现构建
 

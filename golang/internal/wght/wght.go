@@ -45,6 +45,105 @@ var FamilySpecs = []familySpec{
 // 主配置文件名 (唯一源)
 const SourceXMLRel = "system/etc/fonts.xml"
 
+// MetricsFontFile 度量载体文件名 (issue #17): 由 apply.sh 把系统自带的现成字体
+// 挖空后写到 system/fonts/ 下 —— 只留度量与空格字形, 作为家族首个条目充当
+// base 字体, 把行距/字距钉在标准值上。
+const MetricsFontFile = "FontMM-Metrics.ttf"
+
+// 载体条目的标记注释: 插入与移除都以它为锚点, 保证可重复执行
+const (
+	metricsMarkerStart = "<!-- FontMM-Metrics start: 固定行距字距的度量载体 (issue #17) -->"
+	metricsMarkerEnd   = "<!-- FontMM-Metrics end -->"
+)
+
+// metricsEntryIndent 与家族内其他 <font> 条目一致的缩进
+const metricsEntryIndent = "        "
+
+// metricsBlock 生成载体条目块 (全 9 档字重)。
+// 覆盖所有字重是必需的: Android 取家族里与请求字重最接近的条目作为 base 字体
+// (Minikin baseFontFaked), 只放 400 档的话粗体等字重仍会落到用户字体上。
+func metricsBlock() string {
+	lines := []string{metricsEntryIndent + metricsMarkerStart}
+	for _, w := range Weights {
+		lines = append(lines, fmt.Sprintf("%s<font weight=\"%d\" style=\"normal\">%s</font>", metricsEntryIndent, w, MetricsFontFile))
+	}
+	lines = append(lines, metricsEntryIndent+metricsMarkerEnd)
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// ApplyMetrics 开启时在每个生效家族首位插入载体条目, 关闭时移除 (均幂等)。
+// 先移除再插入, 因此同一输入重复调用结果一致; 关闭时能还原到原 XML。
+func ApplyMetrics(xml string, enabled bool) string {
+	out := removeMetricsBlock(xml)
+	if !enabled {
+		return out
+	}
+	for _, spec := range FamilySpecs {
+		out = insertMetricsBlock(out, spec)
+	}
+	return out
+}
+
+// 移除载体条目块 (含标记行与整行换行); 无标记时原样返回
+func removeMetricsBlock(xml string) string {
+	for {
+		start := strings.Index(xml, metricsMarkerStart)
+		if start < 0 {
+			return xml
+		}
+		// 连同该行行首缩进一起删除
+		lineStart := start
+		for lineStart > 0 && xml[lineStart-1] != '\n' {
+			lineStart--
+		}
+		end := strings.Index(xml[start:], metricsMarkerEnd)
+		if end < 0 {
+			return xml // 标记不完整: 不动它, 避免误删
+		}
+		end += start + len(metricsMarkerEnd)
+		// 吃掉标记行尾的换行
+		if end < len(xml) && xml[end] == '\n' {
+			end++
+		}
+		xml = xml[:lineStart] + xml[end:]
+	}
+}
+
+// 在家族起始标签行之后插入载体条目块; 家族不存在时原样返回
+func insertMetricsBlock(xml string, spec familySpec) string {
+	start := findFamilyStart(xml, spec.openTag)
+	if start < 0 {
+		return xml
+	}
+	openEnd := strings.IndexByte(xml[start:], '>')
+	if openEnd < 0 {
+		return xml
+	}
+	openEnd += start + 1
+	// 插入点: 家族标签所在行的行尾之后
+	insertAt := openEnd
+	if nl := strings.IndexByte(xml[insertAt:], '\n'); nl >= 0 {
+		insertAt += nl + 1
+	}
+	return xml[:insertAt] + metricsBlock() + xml[insertAt:]
+}
+
+// ResolveMetrics 解析 -metrics 取值: "on"/"off"/"auto" (auto 读 FONTS/metrics.txt,
+// 内容为 "1" 视为开启)。默认 auto, 让 WebUI 与刷入脚本只维护一个开关文件。
+func ResolveMetrics(xmlDir, mode string) bool {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "on":
+		return true
+	case "off", "":
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(xmlDir, "FONTS", "metrics.txt"))
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(data)) == "1"
+}
+
 // 派生配置 (与 fonts.xml 内容一致, 由 -sync 复制生成)
 var DerivedXMLRel = []string{
 	"system/etc/fonts_base.xml",
@@ -284,13 +383,20 @@ func ReadCustomMap(path string) (map[int]int, error) {
 
 // ApplyToDir 覆写模块根目录下的主配置 fonts.xml; sync 为 true 时复制到各派生配置
 // 返回覆写/同步的文件总数
-func ApplyToDir(xmlDir string, mode, min, max int, customMap map[int]int, sync bool) (int, error) {
+func ApplyToDir(xmlDir string, mode, min, max int, customMap map[int]int, sync bool, metrics bool) (int, error) {
 	src := filepath.Join(xmlDir, SourceXMLRel)
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return 0, fmt.Errorf("读取 %s 失败: %w", SourceXMLRel, err)
 	}
-	replaced := ApplyWghtMode(string(data), mode, min, max, customMap)
+	// 载体文件不存在就不插入条目: 否则 fonts.xml 会引用一个缺失的字体
+	if metrics {
+		if _, err := os.Stat(filepath.Join(xmlDir, "system", "fonts", MetricsFontFile)); err != nil {
+			fmt.Printf("[-] 未找到度量载体 %s, 跳过固定行距字距\n", MetricsFontFile)
+			metrics = false
+		}
+	}
+	replaced := ApplyMetrics(ApplyWghtMode(string(data), mode, min, max, customMap), metrics)
 	changed := 0
 	if replaced != string(data) {
 		if err := os.WriteFile(src, []byte(replaced), 0o644); err != nil {

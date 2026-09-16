@@ -39,6 +39,9 @@ const FAKE_FS: Record<string, { dirs: string[]; fonts: string[]; files: string[]
   '/storage/emulated/0/字体': { dirs: [], fonts: ['思源黑体.ttf', '霞鹜文楷.ttf'], files: [] },
 };
 
+// dev 模式下的固定行距字距开关 (FONTS/metrics.txt 的内存态)
+let mockMetrics = '0';
+
 async function mockExec(command: string): Promise<ExecResult> {
   const fake = (stdout = ''): ExecResult => ({ errno: 0, stdout, stderr: '' });
   const fail = (stderr: string): ExecResult => ({ errno: 1, stdout: '', stderr });
@@ -74,6 +77,15 @@ async function mockExec(command: string): Promise<ExecResult> {
   // 字重覆写模式: cat 返回已选 '1' (裁切), echo 写入模拟成功
   if (command.includes('wght-mode.txt')) {
     return command.includes('echo') ? fake('') : slow('1');
+  }
+  // 固定行距字距开关: 内存态往返 (echo 写, cat 读), 便于 dev 下验证持久化
+  if (command.includes('metrics.txt')) {
+    if (command.includes('echo')) {
+      const m = command.match(/echo '(\d)'/);
+      if (m) mockMetrics = m[1];
+      return fake('');
+    }
+    return slow(mockMetrics);
   }
   // 字重覆写: Go 程序 fontmm-wght (模拟成功日志)
   if (command.includes('fontmm-wght')) {
