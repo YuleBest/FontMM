@@ -174,7 +174,8 @@ document.querySelectorAll<HTMLElement>('.test-card-editable').forEach((card) => 
     const target = document.getElementById(targetId);
     if (!target) return;
     editTargetId = targetId;
-    editInput.value = target.textContent ?? '';
+    // trim: textContent 带着标签间的缩进与换行, 原样填入会在输入框里显示成空行 (issue #16)
+    editInput.value = (target.textContent ?? '').trim();
     if (editDialog) editDialog.open = true;
   });
 });
