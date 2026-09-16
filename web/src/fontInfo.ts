@@ -31,6 +31,12 @@ function extractWghtRange(font: any): string | undefined {
   return `${Math.round(wght.minValue)}-${Math.round(wght.maxValue)}`;
 }
 
+// 字体体积展示: 1MB 以下用 KB (子集化结果常在百 KB 量级, 用 MB 会显示成 0.2 MB 看不出量级)
+export function formatSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 // 读取 fonts-test/ 下字体文件的名称与大小 (WebView 仅能访问 webroot 内文件)
 export async function readFontInfo(file: string): Promise<FontInfo> {
   // dev 假数据: 模拟各槽位字体的名称/大小/可变标识
@@ -61,7 +67,7 @@ export async function readFontInfo(file: string): Promise<FontInfo> {
     const buf = await res.arrayBuffer();
     const font = opentype.parse(buf);
     const name = extractFamilyName(font);
-    const sizeText = `${(buf.byteLength / 1024 / 1024).toFixed(1)} MB`;
+    const sizeText = formatSize(buf.byteLength);
     return {
       name: name ?? undefined,
       sizeText,

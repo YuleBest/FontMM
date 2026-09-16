@@ -1,5 +1,6 @@
 import { exec, shellQuote } from './ksu';
 import { FONTS_DIR, TEST_FONT_DIR } from './constants';
+import { formatSize } from './fontInfo';
 
 // 复制 FONT/ 到 webroot/fonts-test, 供页面加载与名称解析
 // (WebView 无法直接访问模块外部目录, 符号链接在真机也不可靠, 直接复制)
@@ -44,5 +45,27 @@ export async function listFontsDir(): Promise<string[]> {
       .map((p) => p.slice(p.lastIndexOf('/') + 1));
   } catch {
     return [];
+  }
+}
+
+// 英文字体子集文件: apply.sh 子集化成功时写入 FONTS/.en-subset.ttf (issue #10),
+// 安装到 system/fonts 的就是它, 大小通常比原字体小两个数量级 (issue #14)。
+export const EN_SUBSET_FILE = `${FONTS_DIR}/.en-subset.ttf`;
+
+// 读取英文子集大小 (无子集返回 null)。
+// 要求子集比 en.ttf 新 —— 换过英文字体但还没重新应用时, 旧子集不该继续展示。
+export async function getEnSubsetSizeText(): Promise<string | null> {
+  // dev 假数据: 真机没应用过就没有该文件, 徽标无从预览
+  if (import.meta.env.DEV) return '218 KB';
+  try {
+    const subset = shellQuote(EN_SUBSET_FILE);
+    const { errno, stdout } = await exec(
+      `[ -f ${subset} ] && [ ${subset} -nt ${shellQuote(`${FONTS_DIR}/en.ttf`)} ] && wc -c < ${subset}`,
+    );
+    if (errno !== 0) return null;
+    const bytes = Number(stdout.trim());
+    return Number.isFinite(bytes) && bytes > 0 ? formatSize(bytes) : null;
+  } catch {
+    return null;
   }
 }

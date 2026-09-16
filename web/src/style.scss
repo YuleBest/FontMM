@@ -222,6 +222,12 @@ md-filled-card.slot-card {
             background-color: var(--md-sys-color-primary);
             color: var(--md-sys-color-on-primary);
           }
+
+          // 子集化徽标: 与可变字体徽标同级的实色提示 (仅英文字体被裁切时出现)
+          &.slot-meta-badge--subset {
+            background-color: var(--md-sys-color-tertiary);
+            color: var(--md-sys-color-on-tertiary);
+          }
         }
       }
     }

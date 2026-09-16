@@ -125,9 +125,13 @@ if [ ! -f "$FONTS_DIR/en.ttf" ]; then
     # 简体仅在缺字形时兜底 (issue #6)
     install_from "$FONTS_DIR/hans.ttf" "$en_fonts"
 else
-    # 子集化成功则改用子集文件, 否则沿用原字体 (失败不阻断安装)
+    # 子集化成功则改用子集文件, 否则沿用原字体 (失败不阻断安装)。
+    # 未用子集时清掉上次留下的文件, 使 FONTS/.en-subset.ttf 的存在即代表
+    # 「本次应用确实用了子集」—— WebUI 据此展示裁切结果 (issue #14)
     if prepare_english_font "$FONTS_DIR/en.ttf" "$EN_SUBSET"; then
         EN_SRC="$EN_SUBSET"
+    else
+        rm -f "$EN_SUBSET"
     fi
     install_from "$EN_SRC" "$en_fonts"
 fi
