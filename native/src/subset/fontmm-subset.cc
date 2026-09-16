@@ -240,7 +240,7 @@ static unsigned unitsPerEm(const unsigned char *data, size_t size) {
 // 支持字体集合 (.ttc/.otc): 逐个 face 处理, 按表偏移去重 —— 集合里多个 face 常共享
 // 同一份 hhea/OS/2, 重复改写会把已经缩放的度量再缩放一次。
 static bool scaleLineMetrics(std::vector<unsigned char> &buf, unsigned targetTotal, int &oldAsc,
-                             int &oldDesc, int &newAsc, int &newDesc) {
+                             int &oldDesc, int &newAsc, int &newDesc, int &oldYMin, int &oldYMax) {
     unsigned char *data = buf.data();
     size_t size = buf.size();
 
@@ -302,6 +302,27 @@ static bool scaleLineMetrics(std::vector<unsigned char> &buf, unsigned targetTot
             wrU16(data, os2.offset + 76, static_cast<uint16_t>(-nd));
             patched.push_back(os2.offset);
         }
+        // 包围盒 (head.yMin/yMax) 不是行距, 但 Android 的 includeFontPadding 用它撑出
+        // 段落上下空白 (StaticLayout: mTopPadding = above - top, top 来自 Skia 的
+        // SkFontMetrics.fTop/fBottom, 而那两个值取自 head 的包围盒)。字体包围盒虚高时
+        // (某些字体被极少数大字形撑大), 段落就会多出一大圈空白 —— 只收紧、不放大,
+        // 避免把正常字体的包围盒撑得比实际墨迹还大。
+        if (head.found && head.length >= 44 && !seen(patched, head.offset)) {
+            const int yMin = rdI16(data, head.offset + 38);
+            const int yMax = rdI16(data, head.offset + 42);
+            if (oldYMax == 0 && oldYMin == 0) {
+                oldYMin = yMin;
+                oldYMax = yMax;
+            }
+            const int tightMax = yMax > na ? na : yMax;
+            const int tightMin = yMin < nd ? nd : yMin;
+            if (tightMax != yMax || tightMin != yMin) {
+                wrI16(data, head.offset + 38, tightMin);
+                wrI16(data, head.offset + 42, tightMax);
+                patched.push_back(head.offset);
+            }
+        }
+
         any = true;
     }
 
@@ -316,7 +337,14 @@ static bool scaleLineMetrics(std::vector<unsigned char> &buf, unsigned targetTot
             size_t off = rdU32(data, dir + 8);
             size_t len = rdU32(data, dir + 12);
             if (!seen(patched, off) || off + len > size) continue;
-            wrU32(data, dir + 4, tableChecksum(data + off, len));
+            if (memcmp(data + dir, "head", 4) == 0) {
+                // head 的目录校验和按 checkSumAdjustment 归零计算 (与字体本身一致)
+                std::vector<unsigned char> copy(data + off, data + off + len);
+                if (len >= 12) memset(&copy[8], 0, 4);
+                wrU32(data, dir + 4, tableChecksum(copy.data(), len));
+            } else {
+                wrU32(data, dir + 4, tableChecksum(data + off, len));
+            }
         }
     }
 
@@ -453,7 +481,8 @@ int main(int argc, char **argv) {
         }
         unsigned target = static_cast<unsigned>(static_cast<long long>(upem) * lineTotal / 1000);
         int oldAsc = 0, oldDesc = 0, newAsc = 0, newDesc = 0;
-        if (!scaleLineMetrics(buf, target, oldAsc, oldDesc, newAsc, newDesc)) {
+        int oldYMin = 0, oldYMax = 0;
+        if (!scaleLineMetrics(buf, target, oldAsc, oldDesc, newAsc, newDesc, oldYMin, oldYMax)) {
             fprintf(stderr, "[x] 改写行距度量失败 (不受支持的字体结构): %s\n", inPath);
             return 1;
         }
@@ -462,8 +491,10 @@ int main(int argc, char **argv) {
             return 1;
         }
         // 机器可读: 旧/新度量与每 em 占比, 供调用方在日志中核对
-        printf("line_metrics upem=%u old=%d/%d new=%d/%d total=%u\n", upem, oldAsc, oldDesc,
+        printf("line_metrics upem=%u old=%d/%d new=%d/%d total=%u", upem, oldAsc, oldDesc,
                newAsc, newDesc, target);
+        if (oldYMin != 0 || oldYMax != 0) printf(" ink_y=%d/%d", oldYMin, oldYMax);
+        printf("\n");
         return 0;
     }
 

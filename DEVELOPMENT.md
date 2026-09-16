@@ -212,10 +212,18 @@ src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / �
    跳变与文字重叠）。只改度量字段，字形、`hmtx`、布局表原样保留，表长度不变所以无需重排文件；
    只有 `hhea` / `OS/2` 的表校验和与 `head.checkSumAdjustment` 需要重算。
    `FONTS/` 里的原始字体不动，改写只作用于装入的那一份。
+   **同时收紧 `head` 包围盒**：段落上下的空白不是行距，而是
+   `includeFontPadding`（默认开启）用 `mTopPadding = above - top`、`mBottomPadding =
+   bottom - below` 撑出来的，其中 `top`/`bottom` 是 Skia 的 `SkFontMetrics.fTop/fBottom`，
+   取自 **`head` 表的包围盒**（不是 `hhea`）。字体包围盒被极少数大字形撑大时（实测某个
+   Sarasa 变体：hhea 1.45 em 而包围盒 2.86 em），每段会多出约 1.4 em 的空白 —— 这正是
+   「段高离谱」的来源。因此改写时把包围盒**只收紧、不放大**到行距盒（`yMax ≤ ascent`、
+   `yMin ≥ descender`），正常字体不受影响。
    **字体集合（`.ttc` / `.otc`）同样支持**：逐个 face 处理，并按表偏移去重（集合里多个 face
    常共享同一份 `hhea`/`OS/2`，重复改写会把已缩放的度量再缩一次）；`checkSumAdjustment`
-   先把所有 head 的该字段归零、对全文件求和一次，再写回同一个值。
-   应用日志会逐字体回显旧/新度量，便于核对（不同 upem 数值不同，看 em 占比是否一致）。
+   先把所有 head 的该字段归零、对全文件求和一次，再写回同一个值；`head` 的目录校验和按
+   `checkSumAdjustment` 归零计算（与该表本身的约定一致）。
+   应用日志会逐字体回显旧/新度量与包围盒，便于核对（不同 upem 数值不同，看 em 占比是否一致）。
 2. **度量载体**：`src/system/fonts/FontMM-Metrics.ttf`（16KB，由 Roboto Flex 挖空而来，只有
    度量与空格字形）插到各家族首位，让 paint 度量那一侧也一致。9 档字重全覆盖 —— 家族匹配是
    「取与请求字重最接近的条目」，只放 400 档的话粗体等仍会落到用户字体上。
@@ -226,6 +234,7 @@ src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / �
 ```bash
 fontmm-subset -line-metrics -in <font.ttf> -out <out.ttf> -line-total <permille>
 # 输出: line_metrics upem=1000 old=1020/-300 new=927/-273 total=1200
+# 包围盒被收紧时追加: ink_y=-1048/1808
 ```
 
 **载体来源与重新生成**（换度量来源只需换 `-in` 的文件）：
