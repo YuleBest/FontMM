@@ -6,6 +6,10 @@ import { FONTS_DIR, TEST_FONT_DIR } from './constants';
 //
 // 只复制 5 个槽位对应的文件: FONTS/ 下还可能有 apply.sh 生成的中转文件
 // (如 .en-subset.ttf), 它们不是用户选择的字体, 复制过去只是浪费开销。
+//
+// 注意结尾必须加 `:` —— 否则最后一个不存在的槽位会让整段脚本以非 0 退出
+// ([ -f ] 条件失败), 而 exec 只看整体退出码, 上游就会误判为"复制失败"
+// 并把所有槽位当空处理 (issue #11: 只选中文字体时名称全不显示)。
 const SLOT_FILES = ['hans.ttf', 'hant.ttf', 'en.ttf', 'mono.ttf', 'emoji.ttf'];
 
 export async function ensureFontsCopy(): Promise<string[]> {
@@ -15,6 +19,7 @@ export async function ensureFontsCopy(): Promise<string[]> {
     ...SLOT_FILES.map(
       (f) => `[ -f '${FONTS_DIR}/${f}' ] && cp -f '${FONTS_DIR}/${f}' '${TEST_FONT_DIR}/${f}'`,
     ),
+    ':', // 兜底: 保证整体退出码为 0 (见上)
   ].join('\n');
   try {
     const { errno } = await exec(copyCmd);
