@@ -1,8 +1,5 @@
-// fontmm-wght: 覆写模块字体配置 XML 各生效 family 的字重范围与行距字距载体
-// 用法: fontmm-wght -mode 0|1|2|3 [-min N] [-max N] [-map <wght-map.txt>]
-//
-//	[-xml-dir <模块根>] [-sync]
-//
+// fontmm-wght: 覆写模块字体配置 XML 各生效 family 的字重范围
+// 用法: fontmm-wght -mode 0|1|2|3 [-min N] [-max N] [-map <wght-map.txt>] [-xml-dir <模块根>] [-sync]
 // 说明: 只修改主配置 system/etc/fonts.xml, 加 -sync 后复制到各派生配置 (issue #7)
 package main
 

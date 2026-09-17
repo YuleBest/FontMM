@@ -1,7 +1,6 @@
 import { exec, shellQuote, toast } from './ksu';
 import { copyFont, pickWghtRange, refreshEnSubset, renderSlots, setApplying, slots } from './slots';
 import { applyWghtOverride, getSelectedWghtMode, writeWghtMode } from './wght';
-import { getSelectedLevel, getSelectedMetrics, writeLevel, writeMetrics } from './metrics';
 import { invalidateTestFonts } from './testFonts';
 import { applyBtn } from './dom';
 import { FONTS_DIR } from './constants';
@@ -21,9 +20,6 @@ async function apply() {
     // 字重范围覆写: 用 UI 当前模式 (持久化到 FONTS/wght-mode.txt), 仅当存在可变字体且模式非 0 时处理
     const wghtMode = getSelectedWghtMode();
     await writeWghtMode(wghtMode);
-    // 固定行距字距: 开关与档位同样先落盘 —— 载体插入与字体行距统一都在 apply.sh 里按它们进行
-    await writeMetrics(getSelectedMetrics());
-    await writeLevel(getSelectedLevel());
     const wghtPick = pickWghtRange();
     if (wghtMode !== 0 && wghtPick) {
       // Go 程序自行读取 wght-map.txt (mode 3)

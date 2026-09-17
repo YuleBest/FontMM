@@ -41,7 +41,7 @@ pnpm build                               # 完整构建
 | `src/` | 模块本体（打包进 zip 的根目录）：刷入脚本、`apply.sh`、字体配置、设备端工具 |
 | `web/` | WebUI 源码（Vite + TypeScript + Material Web），构建产物输出到 `src/webroot` |
 | `native/` | Zygisk 字体预加载模块（C++） |
-| `golang/` | `fontmm-wght`，字重覆写与字体配置改写工具 |
+| `golang/` | `fontmm-wght`，字重覆写工具 |
 | `dev/` | 构建与开发脚本 |
 
 ## 构建与打包
@@ -169,18 +169,6 @@ fontmm-subset -check <font.ttf>              # 检测含 CJK 则退出码 1
 fontmm-subset -in <f.ttf> -out <o.ttf>       # 生成子集 (默认保留拉丁/希腊/西里尔)
   [-minimal]                                 # 仅 ASCII/西欧 (体积更小, 但会缺字)
   [-keep-cjk]                                # 额外保留 CJK 区块
-fontmm-subset -metrics -in <f.ttf> -out <o>  # 挖空: 只留度量与空格字形 (见下节)
-```
-
-**本地验证挖空/子集**：harfbuzz 源码就在 `dev/.cache/harfbuzz/` 下，可以直接用宿主编译器
-编一份本机可执行文件（不需要 NDK），拿本机字体试效果：
-
-```bash
-g++ -O1 -std=c++17 -DHB_NO_MT -I dev/.cache/harfbuzz/harfbuzz-*/src \
-  dev/.cache/harfbuzz/harfbuzz-*/src/harfbuzz-subset.cc \
-  native/src/subset/fontmm-subset.cc -o /tmp/fontmm-subset-host   # 约 90s
-/tmp/fontmm-subset-host -metrics -in /usr/share/fonts/opentype/noto/NotoSansCJK-Black.ttc -out /tmp/c
-fc-scan --format '%{fontformat} %{charset}\n' /tmp/c              # 应只剩 20 a0 3000
 ```
 
 **harfbuzz 构建缓存**：harfbuzz 源码解压后 97MB，不入库，由 `dev/lib/harfbuzz.mjs`
@@ -194,60 +182,6 @@ fc-scan --format '%{fontformat} %{charset}\n' /tmp/c              # 应只剩 20
 node dev/build-subset.mjs
 src/tools/fontmm-subset -check src/FONTS/hans.ttf    # 应返回 cjk=<非0> / 退出码 1
 ```
-
-## 固定行距 / 字距（issue #17）
-
-**问题**：安卓的行高取「paint 度量」与「该行实际使用字体度量」的**并集** —— `StaticLayout`
-里 `lineAscent = min(paint.getFontMetrics().ascent, 该行字体的 ascent)`（descent 取 max），
-其中 paint 度量取自 typeface 家族里与请求字重最接近的条目（hwui
-`Paint::getMetricsInternal` → Minikin `FontCollection::baseFontFaked`）。并集**只能抬高、
-不能压低**，因此只要装入字体的行距各不相同，换字体行距就会变。
-
-另外「一段文字上下那圈留白」与行距无关：它来自 `includeFontPadding`（默认开启），
-`StaticLayout` 里 `mTopPadding = above - top`、`mBottomPadding = bottom - below`，而
-`top`/`bottom` 是 Skia 的 `SkFontMetrics.fTop/fBottom`，**取自 `head` 表的包围盒**。
-字体包围盒被极少数大字形撑大时（实测某 Sarasa 变体：hhea 1.45 em 而包围盒 2.86 em），
-每段会多出约 1.4 em 的空白。
-
-**做法**：`apply.sh` 在开关打开时，对装入 `system/fonts` 的字体（8 个槽位目标 +
-`DroidSansMono.ttf` + `NotoColorEmoji.ttf`）调用 `fontmm-subset -line-metrics`：
-
-1. 把 `hhea` / `OS/2`（typo 与 win）行距**按比例**缩放到同一总量，`lineGap` 归零、
-   上下比例保持不变（避免基线跳变与文字重叠）。
-2. 把 `head` 包围盒**只收紧、不放大**到行距盒（`yMax ≤ 上升部`、`yMin ≥ 下降部`），
-   收掉段落上下那圈空白；包围盒本来就正常的字体不受影响。
-
-只改这些字段，字形 / `hmtx` / 布局表原样保留，表长度不变；`hhea` / `OS/2` / `head` 的
-表校验和与 `head.checkSumAdjustment` 重算。`FONTS/` 里的原始字体不动。改写后会**回读自检**
-（harfbuzz 重新解析 + 度量比对），不通过就拒绝写出、保留原字体，避免坏字体进入 system/fonts。
-
-**字体集合（`.ttc` / `.otc`）同样支持**：逐个 face 处理并按表偏移去重（集合里多个 face 常
-共享同一份 `hhea`/`OS/2`，重复改写会把已缩放的度量再缩一次）；`checkSumAdjustment` 先把所有
-head 的该字段归零、对全文件求和一次再写回同一个值；`head` 的目录校验和按 `checkSumAdjustment`
-归零计算（与该表自身约定一致）。
-
-档位（行距总量，千分比 em）由 WebUI 选，写在 `FONTS/line-height.txt`：紧凑 `1200` /
-标准 `1450` / 宽松 `1600`，缺省 1450；开关在 `FONTS/metrics.txt`。设备端用法：
-
-```bash
-fontmm-subset -line-metrics -in <font.ttf> -out <out.ttf> -line-total <permille>
-# 输出: line_metrics upem=1000 old=1020/-300 new=927/-273 total=1200
-# 包围盒被收紧时追加: ink_y=-1048/1808
-```
-
-**调试/二分**：在 `FONTS/` 放一个空文件 `.no-tighten-ink`，就只统一度量、不动包围盒。
-
-**踩过的坑（勿重蹈）**：早先的实现是「挖空一个现成字体做度量载体，插到各家族首位」——
-实测这种合成字体在设备上会让**开机失败**（引用它的 fonts.xml 一恢复即可开机）。载体只影响
-paint 度量那一侧、对行距贡献次要，因此该方案已整个移除。
-
-**已知限制**：
-
-- 只统一「会被安装替换」的字体。模块自带的生僻字 fallback（Plangothic / Tibetan /
-  Braille 等）**有意不统一**：用户所选字体通常已覆盖日常用字，为极少数生僻字每次应用
-  多改写 100MB+ 文件不划算；且它们字形本来就高（Tibetan 约 2.8 em、SatisarSharada
-  约 4.2 em），强行压低会叠行。含这些字形的行仍会比标准行更高。
-- DenyList 应用里字体不会被预热，但字体本身已被统一，行距仍是同一档。
 
 ## 可复现构建
 

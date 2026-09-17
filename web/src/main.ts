@@ -2,7 +2,6 @@ import './material';
 // 各功能模块在导入时完成自身初始化 (绑定事件/加载数据)
 import './slots';
 import './wght';
-import './metrics';
 import './apply';
 import './testFonts';
 import './home';

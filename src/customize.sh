@@ -78,14 +78,6 @@ IMPORT_OLD_FONTS() {
             log "旧包没有 $f, 使用新包字体"
         fi
     done
-
-    # 用户设置 (字重模式/字重映射/固定行距开关与档位) 同样继承:
-    # 它们在 FONTS/ 下, 而模块更新会重建整个模块目录, 不继承就得每次重设
-    for f in wght-mode.txt wght-map.txt metrics.txt line-height.txt; do
-        if [ -f "$old_fonts/$f" ]; then
-            cp -f "$old_fonts/$f" "$MOD_WORK_PATH/$f" && log "已继承设置: $f"
-        fi
-    done
 }
 
 # ---------- 系统检查 ----------
