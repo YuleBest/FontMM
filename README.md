@@ -1,7 +1,7 @@
 <h1 align="center">FontMM</h1>
 
 <div align="center">
-  一个用于快速更换系统字体的 Magisk 模块，内置 WebUI 以及一些好用的功能
+  一个用于快速更换 ColorOS 字体的 Magisk 模块，内置 WebUI 以及一些好用的功能
 </div>
 
 <div align="center">
@@ -18,11 +18,11 @@
 
 ## 支持环境
 
-| 项目      | 要求                    |
-| --------- | ----------------------- |
-| 系统      | >= ColorOS 16.0         |
-| Root 环境 | Magisk 20.4+ / KernelSU |
-| 字体格式  | `.ttf`                  |
+| 项目         | 要求                    |
+| ------------ | ----------------------- |
+| 已测试的系统 | ColorOS 16 - 17         |
+| Root 环境    | Magisk 20.4+ / KernelSU |
+| 字体格式     | `.ttf`                  |
 
 ## 安装
 
