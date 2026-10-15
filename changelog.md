@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **补充字库大更新：CJK 基本区与扩展 A 补齐**
+  - 新增 `WenJinMincho-Hans-CJK.ttf` / `WenJinMincho-Sup-CJK.ttf`（源自文津宋体 v2.100 窄间距版，按 fallback 链缺口子集化）
+  - **CJK 基本区 20992 字、扩展 A 6592 字、Hangul 音节、CJK 兼容汉字/兼容形式、CJK 符号与标点、Kanbun、Katakana 音标扩展、Enclosed CJK、半角全角形式全部 100% 覆盖**
+  - 此前基本区仅 5.49%、扩展 A 仅 1.08%（19839 / 6521 个常用字显示为豆腐块）；CJK 扩展 B/C/D/E/F/G/H/I/J 保持全覆盖
+  - 从 Noto Serif SC 移植少量两方都缺的字形（`U+4E2C 丬`、`U+FE45/46 ﹅﹆` 等 214 个）
+- **遍黑体更新到 V2.9.5795**（P1 6.400 / P2 3.179，2026-07）：对标 Unicode 18.0，修订扩展 J 与兼容汉字字形
+- **UnicodiaFunky 更新到 3.1.3**（自上游 SFD 源码用 FontForge 生成）：新增 139 个码位
+- 未变更：`Unicode18-new.ttf`、`ZUno-Number.ttf`（Unihan）、`PlanschriftSeal-Regular.ttf`（小篆）已是最新版，无需更新
+
 ## v26.8.0-beta.10
 
 - **修复英文字体子集化实际未生效**（issue #12）：汉字仍会盖掉中文字体。KernelSU 解压不保留 zip 里的执行位，工具在设备上是 0644，而脚本按 `-x` 判断可用性 → 每次都提示「找不到子集化工具」并跳过。改为按文件存在判断、执行前临时加执行位、用完还原；刷入时 `fontmm-wght` 的同类判断失效（派生字体配置未同步）一并修好

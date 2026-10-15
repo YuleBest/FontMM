@@ -1802,12 +1802,20 @@
 
     <!-- 补充字库 (OFL-1.1): 全局 fallback, 兜底用户字体与系统字体未覆盖的字形
          (CJK 扩展区、Archaic Cuneiform Numerals、最新 Unicode 等)。
-         无名 family 进入默认 fallback 链, 按顺序兜底 -->
+         无名 family 进入默认 fallback 链, 按顺序兜底。
+         汉字部分: 遍黑体在前覆盖多平面生僻字, 文津宋体在后补齐 CJK 基本区/扩展 A
+         等遍黑体不提供的常用区 (子集见 WenJinMincho-*.ttf 的 name 表)。 -->
     <family>
         <font weight="400" style="normal">PlangothicP1.ttf</font>
     </family>
     <family>
         <font weight="400" style="normal">PlangothicP2.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">WenJinMincho-Hans-CJK.ttf</font>
+    </family>
+    <family>
+        <font weight="400" style="normal">WenJinMincho-Sup-CJK.ttf</font>
     </family>
     <family>
         <font weight="400" style="normal">PlanschriftSeal-Regular.ttf</font>

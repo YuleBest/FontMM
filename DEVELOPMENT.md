@@ -264,14 +264,37 @@ python3 dev/check-unicode-coverage.py "Archaic" "Seal"       # 只测指定区�
 
 | 字体                          | 说明                                                                                                                                                                                      |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PlangothicP1/P2.ttf`         | CJK 扩展区覆盖（Ext-B、G/H、**I、J** 等生僻字与新汉字）                                                                                                                                   |
+| `PlangothicP1/P2.ttf`         | CJK 扩展区覆盖（Ext-B/C/D/E/F/G/H/I/J 全覆盖）；源自 [Plangothic_Project](https://github.com/Fitzgerald-Porthmouth-Koenigsegg/Plangothic_Project) V2.9.5795 |
+| `WenJinMincho-Hans-CJK.ttf`   | **CJK 基本区 20992 字 + 扩展 A 6592 字全覆盖**，补齐遍黑体不提供的常用区；源自 [文津宋体](https://github.com/takushun-wu/WenJinMincho) v2.100 的「窄间距版」，已子集化并移植少量缺口字形 |
+| `WenJinMincho-Sup-CJK.ttf`    | 上述字体的补充平面部分（CJK 兼容汉字等）                                                                                                                                                   |
 | `PlanschriftSeal-Regular.ttf` | **Seal（小篆）区块 11328 字符全覆盖**（Unicode 18 新增，子集化 34M；MIT/OFL 双许可，源自 [Planschrift_Project](https://github.com/Fitzgerald-Porthmouth-Koenigsegg/Planschrift_Project)） |
+| `UnicodiaFunky.ttf`           | 方块风格符号补齐；由上游 SFD 源码（Version 3.1.3）用 FontForge 生成                                                                                                                        |
 | `NotoSansPro.otf`             | 多 Noto 家族合并，覆盖广泛语言字形                                                                                                                                                        |
 | `Unicode16/17/18-new.ttf`     | Unicode 最新版本已定义字符覆盖                                                                                                                                                            |
 | `ZUno-Number.ttf`             | 保留符号 / 私用区未定义符号显示编码信息                                                                                                                                                   |
 
 补充字库不参与用户槽位替换，仅在缺字形时按顺序兜底。字体来源与许可详见模块内
 `system/fonts/LICENSE-*` 及 [MakeFontsGreatAgain](https://github.com/Numbersf/MakeFontsGreatAgain) 的 LICENSES。
+
+#### 文津宋体子集的生成方式
+
+`WenJinMincho-Hans-CJK.ttf` / `WenJinMincho-Sup-CJK.ttf` 不是上游成品，而是**按 fallback 链的
+实际缺口裁剪出来的子集**，目的是在不显著增大包体积的前提下把 CJK 基本区与扩展 A 补齐
+（遍黑体只覆盖扩展区，不提供基本区）。生成步骤：
+
+1. 取文津宋体 v2.100 **窄间距版**（文件名带 `C` 的版本）的三个平面 TTF；
+   选窄间距版是因为它把 `hhea` 行高设为 880/1000、字面 800/1000，与系统的
+   `SysFont`/`Noto Sans CJK` 指标一致，作为 fallback 混排时不会撑高行距。
+2. 计算「链上文津宋体之前的字体（遍黑体、小篆、Noto 等）已覆盖的码位」，
+   只保留文津宋体能补上的缺口，外加 CJK 兼容汉字等少量区块（`pyftsubset`）。
+3. 从上游原字体移植少数两方都没有的字形（如 `U+4E2C 丬`、`U+FE45/46 芝麻点`，
+   取自 Noto Serif SC），以及 CJK 符号/假名/半角全角等形式区块的缺口字形，
+   统一缩放到 1000 upm 后合并。
+
+因此这两个文件**不能直接用上游 release 覆盖**；重新生成需重跑上述流程。
+子集保留了文津宋体的 OFL 保留字名限制——因为已大幅删减字符，衍生文件按 OFL
+要求已重命名为 `WenJinMincho-*-CJK`，不沿用原保留名称。
+
 
 ### 工作原理
 
